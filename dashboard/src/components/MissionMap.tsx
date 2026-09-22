@@ -32,9 +32,11 @@ interface Props {
   snapshot: Snapshot | null;
   selectedDrone: string | null;
   onSelectDrone: (droneId: string) => void;
+  /** Incremented by the parent to ask the map to fly to the selected drone. */
+  focusRequest: number;
 }
 
-export function MissionMap({ snapshot, selectedDrone, onSelectDrone }: Props) {
+export function MissionMap({ snapshot, selectedDrone, onSelectDrone, focusRequest }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const fittedMission = useRef<string | null>(null);
@@ -145,6 +147,20 @@ export function MissionMap({ snapshot, selectedDrone, onSelectDrone }: Props) {
     // onSelectDrone is stable enough for the map's lifetime; re-creating the map is worse.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // "Show me": fly to the selected drone whenever the parent bumps focusRequest.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !snapshot || !selectedDrone || focusRequest === 0) return;
+    const view = snapshot.drones.find((d) => d.drone.drone_id === selectedDrone);
+    if (!view?.state) return;
+    m.flyTo({
+      center: [view.state.position.longitude, view.state.position.latitude],
+      zoom: Math.max(m.getZoom(), 16),
+      duration: 800,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest]);
 
   useEffect(() => {
     const m = map.current;
