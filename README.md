@@ -7,7 +7,9 @@ It maintains a shared view of a mission, coordinates search assignments, reacts 
 and vehicle failures, and uses bounded AI decisions while deterministic safety systems retain
 final authority.
 
-> Status: **Phase 0** (foundation). Nothing flies yet. See [Roadmap](#roadmap).
+> Status: **Phase 1 complete.** Three simulated drones search a region end to end with a live
+> dashboard, no ROS, PX4, database or AI key required. Phase 2 (bounded AI decisions) is next.
+> See [Roadmap](#roadmap).
 
 ---
 
@@ -116,13 +118,16 @@ cd aeris
 cd backend
 uv sync --all-extras
 uv run pytest
-uv run uvicorn aeris.api.app:create_app --factory --reload    # http://localhost:8000  (Phase 1)
+uv run uvicorn aeris.api.app:create_app --factory --reload    # http://localhost:8000
 
 # dashboard, in another terminal
 cd dashboard
 pnpm install
-pnpm dev                                                       # http://localhost:3000  (Phase 1)
+pnpm dev                                                       # http://localhost:3000
 ```
+
+Open the dashboard, pick a scenario, set a time scale (simulated seconds per real second),
+click **New mission**, then **Start**. API docs are at `http://localhost:8000/docs`.
 
 Defaults are `AERIS_FLEET_PROVIDER=fake` and `AERIS_DECISION_PROVIDER=mock`, so everything
 runs in-process with no external services.
@@ -132,8 +137,12 @@ runs in-process with no external services.
 ```bash
 cd backend
 uv run aeris sim list
-uv run aeris sim run --scenario forest_search --seed 42       # Phase 1+
+uv run aeris sim run --scenario basic_search
+uv run aeris sim run --scenario lost_connection --quiet --output out.json
 ```
+
+The run prints per-minute fleet status and ends with a JSON summary (final status, coverage,
+zones completed, reassignments, event counts).
 
 Scenarios are YAML files under `sim/scenarios/`. They define the fleet, search area, base,
 missing person, and a timeline of events (battery anomalies, thermal candidates, link loss).
@@ -141,17 +150,24 @@ See [docs/simulation.md](docs/simulation.md).
 
 ## Jev configuration
 
-AERIS uses TypeSafe AI's Jev System One as a bounded decision engine. To enable it:
+AERIS uses TypeSafe AI's Jev as a bounded decision engine, reached through OpenRouter as the
+model gateway. **OpenRouter only routes the request; Jev is the decision model.**
+
+```
+World State → DecisionProvider → OpenRouter → Jev → typed bounded decision
+```
 
 ```bash
 cp .env.example .env
 # edit .env
-AERIS_DECISION_PROVIDER=jev
-TYPESAFE_API_KEY=your_key
-JEV_MODEL=your_model_id
+AERIS_DECISION_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_key
+JEV_MODEL=typesafe/jev-latest
 ```
 
-The configured model appears in every `DecisionRecord` and in telemetry. Never commit `.env`.
+A direct TypeSafe provider can sit behind the same `DecisionProvider` interface. The provider
+and model id appear in every `DecisionRecord` and in telemetry. Never commit `.env`. See
+[docs/jev.md](docs/jev.md) once Phase 2 lands.
 
 ## Offline mode
 
@@ -186,9 +202,9 @@ need rescue. See [docs/safety.md](docs/safety.md).
 
 | Phase | Goal |
 |---|---|
-| 0 | Foundation: docs, skeleton, tooling ← **current** |
-| 1 | Local simulation: three fake drones search a region, REST + WebSocket, basic dashboard |
-| 2 | Decision providers, DecisionRecord, decision inspector, fallback |
+| 0 | Foundation: docs, skeleton, tooling ✅ |
+| 1 | Local simulation: three fake drones search a region, REST + WebSocket, basic dashboard ✅ |
+| 2 | Decision providers (Mock, Rules, Jev via OpenRouter), DecisionRecord, decision inspector, fallback ← **next** |
 | 3 | Safety Governor, operator overrides, dynamic reassignment |
 | 4 | ROS 2 / PX4 SITL / Gazebo with three vehicles |
 | 5 | Detection simulation, complete forest-search scenario |

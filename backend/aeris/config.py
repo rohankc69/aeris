@@ -96,6 +96,8 @@ class Settings(BaseSettings):
 
     database_url: str | None = Field(default=None, validation_alias="DATABASE_URL")
 
+    cors_origins: tuple[str, ...] = ("http://localhost:3000", "http://127.0.0.1:3000")
+
     safety: SafetySettings = Field(default_factory=SafetySettings)
     decision: DecisionSettings = Field(default_factory=DecisionSettings)
 

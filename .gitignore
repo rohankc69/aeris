@@ -34,3 +34,6 @@ evals/out/
 .DS_Store
 .idea/
 .vscode/
+
+# Next.js
+next-env.d.ts

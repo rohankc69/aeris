@@ -56,6 +56,9 @@ ignore = [
     "S101",    # asserts are fine in tests; production code uses explicit checks
 ]
 
+[tool.ruff.lint.pylint]
+max-args = 8  # keyword-only dependency-injection constructors
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ANN", "PLR", "S"]
 
@@ -68,6 +71,9 @@ warn_unreachable = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]
 markers = [
     "integration: exercises several services together (still offline)",
     "live: calls external services; only runs with --run-live",

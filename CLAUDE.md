@@ -59,8 +59,8 @@ asked narrow, typed questions and its answer is only ever a *proposal*.
    (`drone_disposition`, `detection_triage`, `zone_priority`, `human_review_gate`). Never
    "what should the fleet do?".
 8. **Do not expose secrets.** Credentials come only from environment variables
-   (`TYPESAFE_API_KEY`, `JEV_MODEL`, `DATABASE_URL`). Never commit them; `.env.example`
-   contains placeholders only.
+   (`OPENROUTER_API_KEY`, `TYPESAFE_API_KEY`, `JEV_MODEL`, `DATABASE_URL`). Never commit
+   them; `.env.example` contains placeholders only.
 9. **Add tests for safety-critical logic.** Any change to `safety/`, battery/return logic,
    lost-link behavior, geofence, or reassignment requires tests in the same PR.
 10. **Maintain simulation-first development.** Default config is `AERIS_FLEET_PROVIDER=fake`.
@@ -76,6 +76,11 @@ Additional rules that follow from the above:
   older than the configured timeout is `STALE`/`LOST` until proven otherwise.
 - Lost-link behavior is preconfigured deterministic code. Jev is never consulted for it.
 - Search paths are deterministic and unit-tested. Jev never generates waypoints.
+- **Jev is reached through a model gateway; the gateway is not the decision-maker.** The
+  hosted path is `WorldState → DecisionProvider → OpenRouter → Jev`. `OpenRouterJevProvider`
+  is the default hosted provider; a direct TypeSafe provider may sit behind the same
+  abstraction. Mission code depends only on `DecisionProvider` and never on which provider
+  answered. Provider-specific request/response formatting lives inside the provider.
 
 ## Repository layout
 
@@ -92,15 +97,18 @@ aeris/
 │   │   ├── domain/           Pydantic models + enums. No I/O, no ROS, no framework imports.
 │   │   ├── events/           Domain events + in-process async EventBus abstraction
 │   │   ├── world/            WorldStateService: authoritative mission snapshot, staleness
-│   │   ├── decisions/        DecisionProvider protocol, Jev/Mock/RuleBased providers,
+│   │   ├── decisions/        DecisionProvider protocol; OpenRouterJev/RuleBased/Mock providers,
 │   │   │                     decision modules, DecisionRecord, fallback/circuit breaker
 │   │   ├── planning/         grid partition, coverage paths, AssignmentStrategy, MissionPlanner
 │   │   ├── safety/           SafetyGovernor + deterministic rules + SafetyEvent
 │   │   ├── fleet/            FleetAdapter protocol, FakeFleetAdapter, px4/ adapter
 │   │   ├── mission/          MissionManager: orchestrates the control loop
+│   │   ├── simulation/       Scenario schema/loader and ScenarioRunner (fake fleet, SimClock)
 │   │   ├── api/              FastAPI routers, WebSocket, schemas
 │   │   ├── persistence/      SQLAlchemy models/repositories (PostgreSQL + PostGIS)
 │   │   ├── telemetry/        structured logging + metrics registry
+│   │   ├── clock.py          Clock protocol, SystemClock, SimClock
+│   │   ├── cli.py            `aeris` CLI (sim, eval)
 │   │   └── config.py         pydantic-settings; all env vars defined here
 │   └── tests/                unit/, integration/, live/ (live needs --run-live flag)
 ├── dashboard/                Next.js + React + TypeScript + MapLibre GL
@@ -146,7 +154,8 @@ All backend commands run from `backend/`; all dashboard commands from `dashboard
 cd backend
 uv sync --all-extras                 # install deps into .venv
 uv run uvicorn aeris.api.app:create_app --factory --reload   # dev server on :8000
-uv run aeris --help                  # CLI (mission, sim, eval subcommands)
+uv run aeris --help                  # CLI (sim now; eval in Phase 6)
+uv run aeris config                  # effective settings, secrets redacted
 ```
 
 ### Tests
@@ -182,9 +191,10 @@ pnpm lint && pnpm typecheck
 
 ```bash
 cd backend
-uv run aeris sim run --scenario forest_search           # full local mission, fake fleet
-uv run aeris sim run --scenario low_battery --seed 42
 uv run aeris sim list
+uv run aeris sim run --scenario basic_search             # headless, prints per-minute progress + JSON summary
+uv run aeris sim run --scenario lost_connection --quiet --output out.json
+# forest_search and the detection scenarios arrive in Phase 5
 ```
 
 ### PX4 bridge (Phase 4, Docker-hosted, *planned*)
@@ -220,10 +230,11 @@ Environment variables (see `.env.example`):
 ```
 AERIS_ENV=development
 AERIS_FLEET_PROVIDER=fake            # fake | px4
-AERIS_DECISION_PROVIDER=mock         # mock | rules | jev
-AERIS_DECISION_FALLBACK=rules
-TYPESAFE_API_KEY=                    # only needed for jev
-JEV_MODEL=                           # surfaced in every DecisionRecord and telemetry
+AERIS_DECISION_PROVIDER=mock         # mock | rules | openrouter | typesafe
+AERIS_DECISION_FALLBACK=rules        # must be an offline provider
+OPENROUTER_API_KEY=                  # only for openrouter (default hosted path to Jev)
+TYPESAFE_API_KEY=                    # only for typesafe (direct)
+JEV_MODEL=typesafe/jev-latest        # model id sent to the gateway; surfaced in every DecisionRecord
 DATABASE_URL=postgresql+asyncpg://aeris:aeris@localhost:5432/aeris
 ```
 
@@ -232,8 +243,8 @@ DATABASE_URL=postgresql+asyncpg://aeris:aeris@localhost:5432/aeris
 | Phase | Goal | Status |
 |---|---|---|
 | 0 | CLAUDE.md, README, architecture doc, skeleton, dev environment | done |
-| 1 | Local simulation without PX4: domain, WorldState, FakeFleetAdapter, grid, assignment, events, REST API, basic dashboard | next |
-| 2 | Decision providers (Mock, RuleBased, Jev), DecisionRecord, inspector, fallback | planned |
+| 1 | Local simulation without PX4: domain, WorldState, FakeFleetAdapter, grid, assignment, events, REST API, basic dashboard | done |
+| 2 | Decision providers (Mock, RuleBased, OpenRouter-routed Jev), DecisionRecord, inspector, fallback | next |
 | 3 | SafetyGovernor, battery/timeout/geofence rules, operator overrides, dynamic reassignment | planned |
 | 4 | ROS 2 + PX4 SITL + Gazebo, PX4FleetAdapter, 3 vehicles | planned |
 | 5 | Detection simulation, complete forest-search scenario | planned |
