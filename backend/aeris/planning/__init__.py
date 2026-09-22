@@ -13,6 +13,7 @@ from aeris.planning.assignment import (
 from aeris.planning.coverage import BoustrophedonPlanner, CoveragePlanner, CoverageRequest
 from aeris.planning.geo_frame import LocalFrame
 from aeris.planning.partition import GridPartitioner, Partitioner
+from aeris.planning.progress import PlanProgressTracker
 
 __all__ = [
     "AssignmentCandidate",
@@ -25,5 +26,6 @@ __all__ = [
     "GridPartitioner",
     "LocalFrame",
     "Partitioner",
+    "PlanProgressTracker",
     "ZoneAssignmentProposal",
 ]
