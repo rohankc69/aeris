@@ -194,6 +194,7 @@ cd backend
 uv run aeris sim list
 uv run aeris sim run --scenario basic_search             # headless, prints per-minute progress + JSON summary
 uv run aeris sim run --scenario lost_connection --quiet --output out.json
+# scenarios: basic_search, low_battery, lost_connection, drone_failure, dynamic_reassignment
 # forest_search and the detection scenarios arrive in Phase 5
 ```
 
@@ -245,8 +246,8 @@ DATABASE_URL=postgresql+asyncpg://aeris:aeris@localhost:5432/aeris
 | 0 | CLAUDE.md, README, architecture doc, skeleton, dev environment | done |
 | 1 | Local simulation without PX4: domain, WorldState, FakeFleetAdapter, grid, assignment, events, REST API, basic dashboard | done |
 | 2 | Decision providers (Mock, RuleBased, OpenRouter-routed Jev), DecisionRecord, inspector, fallback | done |
-| 3 | SafetyGovernor extended: geofence, altitude, separation, waypoint validation; operator overrides; dynamic reassignment | next |
-| 4 | ROS 2 + PX4 SITL + Gazebo, PX4FleetAdapter, 3 vehicles | planned |
+| 3 | SafetyGovernor extended: geofence, altitude, separation, plan validation, restricted regions; e-stop; zone priority in assignment | done |
+| 4 | ROS 2 + PX4 SITL + Gazebo, PX4FleetAdapter, 3 vehicles | next |
 | 5 | Detection simulation, complete forest-search scenario | planned |
 | 6 | Evaluation harness, docs, screenshots, contributor experience | planned |
 

@@ -72,6 +72,8 @@ class Scenario(BaseModel):
     seed: int = 0
     base_position: GeoPoint
     search_polygon: GeoPolygon
+    restricted_regions: tuple[GeoPolygon, ...] = ()
+    last_known_position: GeoPoint | None = None
     search_altitude_m: float = Field(60.0, gt=0)
     overlap_fraction: float = Field(0.2, ge=0, lt=1)
     zone_size_m: float = Field(250.0, gt=0)
@@ -102,6 +104,8 @@ class Scenario(BaseModel):
                 overlap_fraction=self.overlap_fraction,
             ),
             base_position=self.base_position,
+            restricted_regions=self.restricted_regions,
+            last_known_position=self.last_known_position,
             drone_ids=tuple(d.drone_id for d in self.drones),
             **extra,
         )

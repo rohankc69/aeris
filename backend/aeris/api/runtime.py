@@ -45,6 +45,12 @@ class MissionRuntime:
     def unsubscribe(self, queue: asyncio.Queue[dict[str, object]]) -> None:
         self.subscribers.discard(queue)
 
+    def payload(self, snap: WorldSnapshot | None = None) -> dict[str, object]:
+        snap = snap or self.runner.world.snapshot()
+        return snapshot_payload(
+            snap, emergency_stop_active=self.runner.manager.emergency_stop_active
+        )
+
     def broadcast(self, message: dict[str, object]) -> None:
         for queue in list(self.subscribers):
             with contextlib.suppress(asyncio.QueueFull):
@@ -95,7 +101,7 @@ class MissionRegistry:
                 and runner.elapsed_s < runner.scenario.max_duration_s
             ):
                 snap = await runner.step()
-                runtime.broadcast({"kind": "snapshot", "data": snapshot_payload(snap)})
+                runtime.broadcast({"kind": "snapshot", "data": runtime.payload(snap)})
                 await asyncio.sleep(runner.scenario.tick_s / runtime.time_scale)
         except asyncio.CancelledError:
             raise
@@ -114,13 +120,16 @@ class MissionRegistry:
                     await runtime.task
 
 
-def snapshot_payload(snap: WorldSnapshot) -> dict[str, object]:
+def snapshot_payload(
+    snap: WorldSnapshot, *, emergency_stop_active: bool = False
+) -> dict[str, object]:
     """Compact snapshot for the wire: mission, drones, zones, coverage."""
     return {
         "taken_at": snap.taken_at.isoformat(),
         "snapshot_hash": snap.snapshot_hash,
         "mission": snap.mission.model_dump(mode="json"),
         "coverage_fraction": snap.coverage_fraction,
+        "emergency_stop_active": emergency_stop_active,
         "drones": [
             {
                 "drone": v.drone.model_dump(mode="json"),

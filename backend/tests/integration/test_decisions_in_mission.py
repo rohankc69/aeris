@@ -107,7 +107,12 @@ async def test_safety_governor_overrides_unsafe_ai_output() -> None:
     assert summary.final_status is MissionStatus.COMPLETED
     overridden = [r for r in runner.world.decisions if r.safety_override]
     assert overridden, "at least one AI CONTINUE_SEARCH must have been overridden at low battery"
-    r = overridden[0]
+    battery_events = {
+        e.event_id
+        for e in runner.world.safety_events
+        if e.rule in {"mandatory_return_battery", "return_margin", "critical_battery"}
+    }
+    r = next(x for x in overridden if x.safety_event_id in battery_events)
     assert r.selected_value == "CONTINUE_SEARCH"
     assert r.final_action == "RETURN_TO_BASE"
     assert r.safety_event_id is not None
@@ -156,6 +161,8 @@ async def test_decisions_are_throttled_per_drone() -> None:
         await runner.step()
     per_drone: dict[str | None, int] = {}
     for r in runner.world.decisions:
+        if r.decision_type != "drone_disposition":
+            continue
         per_drone[r.drone_id] = per_drone.get(r.drone_id, 0) + 1
     interval = runner.settings.decision.disposition_interval_s
     assert all(count <= 60 / interval + 1 for count in per_drone.values())

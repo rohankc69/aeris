@@ -52,21 +52,22 @@ rule fires. The AI cadence is `AERIS_DECISION__DISPOSITION_INTERVAL_S` (default 
 `provider` is the provider that actually produced the answer. After a fallback it reads
 `rules` with `fallback_reason` set, not `openrouter`.
 
-## Safety Governor rules (Phase 2)
+## Safety Governor rules
 
-| Rule | Fires when | Required action |
-|---|---|---|
-| `critical_battery` | battery ≤ `critical_battery_percent` | RETURN_TO_BASE |
-| `mandatory_return_battery` | battery ≤ `min_return_battery_percent` | RETURN_TO_BASE |
-| `return_margin` | battery ≤ estimated return cost + `return_battery_margin_percent` | RETURN_TO_BASE |
-| `link_lost` | link state LOST | RETURN_TO_BASE (preconfigured lost-link behaviour) |
-| `mission_not_active` | mission paused/aborted while searching | HOLD |
-| `telemetry_missing` | no telemetry ever received | HOLD |
+The full state-rule and plan-rule tables live in `docs/safety.md`. For decisions the important
+property is: a proposal that already satisfies the required action (or is more conservative
+than a HOLD requirement) passes; anything else is replaced and produces a `SafetyEvent` whose
+`proposed_action` is `<provider>:<proposal>`. Jev may recommend an *earlier* return but can
+never delay a mandatory one.
 
-A proposal that already satisfies the required action (or is more conservative than a HOLD
-requirement) passes. Anything else is replaced and produces a `SafetyEvent` whose
-`proposed_action` is `<provider>:<proposal>`. Jev may therefore recommend an *earlier* return
-but can never delay a mandatory one.
+## Zone priority in assignment
+
+When open zones exist, the engine scores each one with the bounded `zone_priority` question
+at most every `AERIS_DECISION__ZONE_PRIORITY_INTERVAL_S`. The score becomes the zone's
+`priority`, one weighted term in the deterministic greedy assignment alongside distance,
+battery and remaining work. The score never assigns anything by itself. Inputs include
+coverage, time since last search, nearby candidate detections and distance from the mission's
+`last_known_position`.
 
 ## Inspecting decisions
 

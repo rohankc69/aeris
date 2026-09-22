@@ -309,3 +309,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   vertical-align: middle;
   border-radius: 2px;
 }
+
+button.estop {
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+button.estop.active {
+  background: var(--danger);
+  color: #fff;
+}

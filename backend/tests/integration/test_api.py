@@ -94,6 +94,37 @@ async def test_operator_commands_over_http(client: AsyncClient) -> None:
     assert aborted.json()["status"] == "ABORTED"
 
 
+async def test_emergency_stop_over_http(client: AsyncClient) -> None:
+    mission_id = (
+        await client.post(
+            "/api/v1/missions",
+            json={"scenario": "basic_search", "time_scale": 200, "autostart": True},
+        )
+    ).json()["mission_id"]
+    await asyncio.sleep(0.3)
+
+    stopped = await client.post(f"/api/v1/missions/{mission_id}/estop")
+    assert stopped.status_code == 200
+    assert stopped.json()["status"] == "PAUSED"
+    summary = (await client.get(f"/api/v1/missions/{mission_id}")).json()["summary"]
+    assert summary["emergency_stop_active"] is True
+    drones = (await client.get(f"/api/v1/missions/{mission_id}/drones")).json()
+    assert all(d["state"]["status"] == "HOLDING" for d in drones)
+
+    blocked = await client.post(f"/api/v1/missions/{mission_id}/resume")
+    assert blocked.status_code == 409
+
+    cleared = await client.post(f"/api/v1/missions/{mission_id}/estop/clear")
+    assert cleared.status_code == 200 and cleared.json()["status"] == "PAUSED"
+    resumed = await client.post(f"/api/v1/missions/{mission_id}/resume")
+    assert resumed.json()["status"] == "ACTIVE"
+    events = (await client.get(f"/api/v1/missions/{mission_id}/events")).json()
+    assert any(
+        e["event_type"] == "OperatorActionReceived" and e["action_type"] == "EMERGENCY_STOP"
+        for e in events
+    )
+
+
 async def test_validation_errors(client: AsyncClient) -> None:
     both = await client.post(
         "/api/v1/missions", json={"scenario": "basic_search", "spec": None, "time_scale": 0}

@@ -1,0 +1,27 @@
+# Drone 03 suffers a hard failure at T+150s: its link drops and it stops flying (battery forced
+# to zero so the fake fleet lands it). Its zone must be released and finished by the others.
+name: drone_failure
+description: One drone fails outright mid-search; the remaining two complete the region.
+seed: 4
+base_position: { latitude: 47.3769, longitude: 8.5417, altitude_m: 0 }
+search_polygon:
+  vertices:
+    - { latitude: 47.3780, longitude: 8.5430 }
+    - { latitude: 47.3780, longitude: 8.5510 }
+    - { latitude: 47.3834, longitude: 8.5510 }
+    - { latitude: 47.3834, longitude: 8.5430 }
+search_altitude_m: 60
+overlap_fraction: 0.2
+zone_size_m: 200
+tick_s: 1.0
+max_duration_s: 3600
+drones:
+  - drone_id: drone-01
+    capability: { cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+  - drone_id: drone-02
+    capability: { cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+  - drone_id: drone-03
+    capability: { cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+events:
+  - { at_s: 150, type: battery_set, drone_id: drone-03, value: 0, note: "power failure" }
+  - { at_s: 150, type: link_set, drone_id: drone-03, value: false, note: "radio dead" }

@@ -33,7 +33,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ scenario, time_scale: timeScale, autostart: false }),
     }),
-  command: (id: string, action: "start" | "pause" | "resume" | "abort") =>
+  command: (id: string, action: "start" | "pause" | "resume" | "abort" | "estop" | "estop/clear") =>
     request<unknown>(`/api/v1/missions/${id}/${action}`, { method: "POST" }),
   droneCommand: (id: string, droneId: string, action: "return" | "hold") =>
     request<unknown>(`/api/v1/missions/${id}/drones/${droneId}/${action}`, {

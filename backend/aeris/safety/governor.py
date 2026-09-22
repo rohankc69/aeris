@@ -5,8 +5,10 @@ governor composes small deterministic rules (``aeris.safety.rules``) that read n
 thresholds from ``SafetySettings``. A violated rule replaces the proposal with the rule's
 required action and produces a ``SafetyEvent``.
 
-Phase 2 rules cover battery, link, and mission state. Geofence, altitude, separation and
-waypoint validation arrive in Phase 3 as additional rules.
+State rules (``aeris.safety.rules``) govern what a drone should do now: battery, link,
+altitude, separation, mission state. Plan rules (``aeris.safety.plan_rules``) validate a
+waypoint plan before it is sent: coordinates, availability, altitude, geofence, restricted
+regions, energy reachability.
 """
 
 from __future__ import annotations
@@ -15,7 +17,8 @@ from dataclasses import dataclass
 
 from aeris.config import SafetySettings
 from aeris.domain.enums import Disposition, DroneStatus
-from aeris.domain.models import SafetyEvent
+from aeris.domain.models import SafetyEvent, WaypointPlan
+from aeris.safety.plan_rules import PlanContext, PlanRule, PlanViolation, default_plan_rules
 from aeris.safety.rules import RuleContext, SafetyRule, Violation, default_rules
 from aeris.world.snapshot import DroneView, WorldSnapshot
 
@@ -36,10 +39,23 @@ class SafetyVerdict:
         return self.event is not None
 
 
+@dataclass(frozen=True)
+class PlanVerdict:
+    allowed: bool
+    violation: PlanViolation | None = None
+    event: SafetyEvent | None = None
+
+
 class SafetyGovernor:
-    def __init__(self, settings: SafetySettings, rules: list[SafetyRule] | None = None) -> None:
+    def __init__(
+        self,
+        settings: SafetySettings,
+        rules: list[SafetyRule] | None = None,
+        plan_rules: list[PlanRule] | None = None,
+    ) -> None:
         self._settings = settings
         self._rules = rules if rules is not None else default_rules()
+        self._plan_rules = plan_rules if plan_rules is not None else default_plan_rules()
 
     def check(self, view: DroneView, snapshot: WorldSnapshot) -> Violation | None:
         """First violated rule for this drone's current state, independent of any proposal."""
@@ -79,6 +95,34 @@ class SafetyGovernor:
         return SafetyVerdict(
             allowed=False, action=violation.required_action, violation=violation, event=event
         )
+
+    def validate_plan(
+        self, plan: WaypointPlan, view: DroneView, snapshot: WorldSnapshot, *, source: str
+    ) -> PlanVerdict:
+        """Block a plan that violates any plan rule. Blocked plans are never sent."""
+        state = view.state
+        violation: PlanViolation | None
+        if state is None:
+            violation = PlanViolation("telemetry_missing", "no telemetry ever received")
+        else:
+            ctx = PlanContext.build(plan, view, state, snapshot, self._settings)
+            violation = next(
+                (v for v in (rule.evaluate(ctx) for rule in self._plan_rules) if v is not None),
+                None,
+            )
+        if violation is None:
+            return PlanVerdict(allowed=True)
+        event = SafetyEvent(
+            timestamp=snapshot.taken_at,
+            mission_id=snapshot.mission.mission_id,
+            drone_id=view.drone.drone_id,
+            rule=violation.rule,
+            proposed_action=f"{source}:plan:{plan.zone_id or plan.task}",
+            safe_alternative="plan_rejected",
+            reason=violation.reason,
+            snapshot_hash=snapshot.snapshot_hash,
+        )
+        return PlanVerdict(allowed=False, violation=violation, event=event)
 
     def return_battery_percent(self, view: DroneView, snapshot: WorldSnapshot) -> float:
         if view.state is None:

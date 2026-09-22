@@ -1,0 +1,35 @@
+# Two independent disruptions: drone-02 drains fast from T+60s and returns; drone-03 loses its
+# link at T+240s. Both unfinished zones must be redistributed and the region still completes.
+# A restricted region (a no-fly pocket) sits inside the search area and must never be entered.
+name: dynamic_reassignment
+description: Battery return plus link loss with a no-fly pocket; work is redistributed twice.
+seed: 5
+base_position: { latitude: 47.3769, longitude: 8.5417, altitude_m: 0 }
+search_polygon:
+  vertices:
+    - { latitude: 47.3780, longitude: 8.5430 }
+    - { latitude: 47.3780, longitude: 8.5510 }
+    - { latitude: 47.3834, longitude: 8.5510 }
+    - { latitude: 47.3834, longitude: 8.5430 }
+restricted_regions:
+  - vertices:
+      - { latitude: 47.3800, longitude: 8.5460 }
+      - { latitude: 47.3800, longitude: 8.5480 }
+      - { latitude: 47.3814, longitude: 8.5480 }
+      - { latitude: 47.3814, longitude: 8.5460 }
+last_known_position: { latitude: 47.3825, longitude: 8.5500 }
+search_altitude_m: 60
+overlap_fraction: 0.2
+zone_size_m: 200
+tick_s: 1.0
+max_duration_s: 3600
+drones:
+  - drone_id: drone-01
+    capability: { cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+  - drone_id: drone-02
+    capability: { cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+  - drone_id: drone-03
+    capability: { cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+events:
+  - { at_s: 60, type: battery_drain_multiplier, drone_id: drone-02, value: 4 }
+  - { at_s: 240, type: link_set, drone_id: drone-03, value: false }

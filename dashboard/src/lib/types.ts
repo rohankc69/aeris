@@ -98,6 +98,7 @@ export interface Snapshot {
   snapshot_hash: string;
   mission: Mission;
   coverage_fraction: number;
+  emergency_stop_active: boolean;
   drones: DroneView[];
   zones: Zone[];
   detections: Detection[];
@@ -114,6 +115,9 @@ export interface MissionSummary {
   coverage_fraction: number;
   zone_count: number;
   drone_count: number;
+  emergency_stop_active: boolean;
+  decision_count: number;
+  safety_event_count: number;
 }
 
 export interface DomainEvent {

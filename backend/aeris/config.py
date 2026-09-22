@@ -57,6 +57,18 @@ class SafetySettings(BaseModel):
     )
     max_altitude_m: float = Field(120.0, gt=0)
     min_separation_m: float = Field(30.0, gt=0)
+    separation_exempt_radius_m: float = Field(
+        100.0, ge=0, description="Around base, launch/recovery traffic is exempt from separation"
+    )
+    geofence_buffer_m: float = Field(
+        50.0, ge=0, description="How far outside the search polygon a waypoint may lie"
+    )
+    restricted_clearance_m: float = Field(
+        20.0, ge=0, description="Standoff kept between search paths and restricted regions"
+    )
+    plan_energy_safety_factor: float = Field(
+        1.15, ge=1, description="Multiplier on estimated plan energy before checking reachability"
+    )
     link_degraded_after_s: float = Field(2.0, gt=0)
     link_stale_after_s: float = Field(5.0, gt=0)
     link_lost_after_s: float = Field(10.0, gt=0)
@@ -82,6 +94,9 @@ class DecisionSettings(BaseModel):
     human_review_probability_threshold: float = Field(0.6, ge=0, le=1)
     disposition_interval_s: float = Field(
         15.0, gt=0, description="Minimum simulated seconds between disposition decisions per drone"
+    )
+    zone_priority_interval_s: float = Field(
+        60.0, gt=0, description="Minimum simulated seconds between priority scores per zone"
     )
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
