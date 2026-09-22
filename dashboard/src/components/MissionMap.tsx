@@ -37,7 +37,12 @@ interface Props {
 export function MissionMap({ snapshot, selectedDrone, onSelectDrone }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
-  const fitted = useRef(false);
+  const fittedMission = useRef<string | null>(null);
+
+  const recenter = () => {
+    const m = map.current;
+    if (m && snapshot) m.fitBounds(bounds(snapshot.mission.search_area.polygon), { padding: 60, duration: 300 });
+  };
 
   useEffect(() => {
     if (!container.current || map.current) return;
@@ -187,13 +192,23 @@ export function MissionMap({ snapshot, selectedDrone, onSelectDrone }: Props) {
       ),
     });
 
-    if (!fitted.current) {
+    // Zoom to the search area whenever a different mission is shown, not just the first one.
+    if (fittedMission.current !== snapshot.mission.mission_id) {
       m.fitBounds(bounds(snapshot.mission.search_area.polygon), { padding: 60, duration: 0 });
-      fitted.current = true;
+      fittedMission.current = snapshot.mission.mission_id;
     }
   }, [snapshot, selectedDrone]);
 
-  return <div ref={container} className="map" />;
+  return (
+    <div className="map">
+      <div ref={container} className="map-canvas" />
+      {snapshot && (
+        <button className="map-recenter" onClick={recenter} title="Zoom to the search area">
+          Recenter
+        </button>
+      )}
+    </div>
+  );
 }
 
 function emptyCollection(): GeoJSON.FeatureCollection {
