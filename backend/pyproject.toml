@@ -56,6 +56,9 @@ ignore = [
     "S101",    # asserts are fine in tests; production code uses explicit checks
 ]
 
+[tool.ruff.lint.pylint]
+max-args = 8  # keyword-only dependency-injection constructors
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ANN", "PLR", "S"]
 

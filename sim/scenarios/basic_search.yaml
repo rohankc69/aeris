@@ -1,0 +1,28 @@
+# Three drones search a 600 m x 600 m region with no complications.
+# Baseline scenario: every zone should reach COMPLETE and the mission should end COMPLETED.
+name: basic_search
+description: Three quadcopters cover a small region with no failures or detections.
+seed: 1
+base_position: { latitude: 47.3769, longitude: 8.5417, altitude_m: 0 }
+search_polygon:
+  vertices:
+    - { latitude: 47.3780, longitude: 8.5430 }
+    - { latitude: 47.3780, longitude: 8.5510 }
+    - { latitude: 47.3834, longitude: 8.5510 }
+    - { latitude: 47.3834, longitude: 8.5430 }
+search_altitude_m: 60
+overlap_fraction: 0.2
+zone_size_m: 200
+tick_s: 1.0
+max_duration_s: 3600
+drones:
+  - drone_id: drone-01
+    name: Drone 01
+    capability: { camera: true, thermal: true, cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+  - drone_id: drone-02
+    name: Drone 02
+    capability: { camera: true, thermal: false, cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+  - drone_id: drone-03
+    name: Drone 03
+    capability: { camera: true, thermal: true, cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+events: []
