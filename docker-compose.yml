@@ -64,7 +64,13 @@ services:
     environment:
       PX4_VEHICLES: ${PX4_VEHICLES:-3}
       PX4_GZ_WORLD: aeris_forest
-    # DDS discovery between px4-sim and bridge uses multicast on the compose network.
+    # Mounted so the launch script and world can change without rebuilding the 9 GB image.
+    volumes:
+      - ./docker/px4-sim/run_sim.sh:/opt/run_sim.sh:ro
+      - ./sim/worlds/aeris_forest.sdf:/opt/px4/Tools/simulation/gz/worlds/aeris_forest.sdf:ro
+    # DDS discovery uses multicast on the compose network; the data path uses Fast DDS
+    # shared memory, so the bridge shares this container's IPC namespace (see bridge.ipc).
+    ipc: shareable
     ulimits:
       nofile: 65536
     shm_size: "1g"
@@ -78,10 +84,10 @@ services:
       ROS_DOMAIN_ID: "0"
       RMW_IMPLEMENTATION: rmw_fastrtps_cpp
     ports:
-      - "8765:8765"
+      - "${AERIS_BRIDGE_PORT:-8765}:8765"
     depends_on:
       - px4-sim
-    shm_size: "1g"
+    ipc: "service:px4-sim"
 
 volumes:
   aeris_pg:

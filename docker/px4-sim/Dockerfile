@@ -5,7 +5,7 @@
 # Status: authored, not yet built in the authoring session.
 FROM ubuntu:24.04
 
-ARG PX4_VERSION=v1.15.4
+ARG PX4_VERSION=v1.16.0
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC LANG=C.UTF-8
 
@@ -13,15 +13,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         git ca-certificates curl sudo lsb-release gnupg python3 python3-pip cmake build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# PX4 source and its Ubuntu setup script (installs toolchain and Gazebo Harmonic).
+# PX4 source with shallow submodules.
 WORKDIR /opt
-RUN git clone --depth 1 --branch ${PX4_VERSION} --recursive https://github.com/PX4/PX4-Autopilot.git px4 \
-    && cd px4 && bash ./Tools/setup/ubuntu.sh --no-nuttx --no-sim-tools \
-    && apt-get update && apt-get install -y --no-install-recommends gz-harmonic \
+RUN git clone --depth 1 --branch ${PX4_VERSION} --recursive --shallow-submodules \
+        https://github.com/PX4/PX4-Autopilot.git px4
+
+# PX4's own toolchain setup (no NuttX, no simulator packages; we add Gazebo ourselves).
+RUN cd /opt/px4 && bash ./Tools/setup/ubuntu.sh --no-nuttx --no-sim-tools \
     && rm -rf /var/lib/apt/lists/*
 
-# Build SITL once so container start is fast.
-RUN cd /opt/px4 && DONT_RUN=1 make px4_sitl_default gz_x500
+# Gazebo Harmonic from the OSRF repository.
+RUN curl -fsSL https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+        > /etc/apt/sources.list.d/gazebo-stable.list \
+    && apt-get update && apt-get install -y --no-install-recommends gz-harmonic libopencv-dev cppzmq-dev libzmq3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build SITL once so container start is fast. PX4's version header derives a NuttX version
+# from git tags, which a shallow submodule clone lacks, so fetch them first.
+RUN cd /opt/px4/platforms/nuttx/NuttX/nuttx && git fetch --depth 1 --tags origin \
+    && cd /opt/px4 && make px4_sitl_default
 
 # Micro XRCE-DDS Agent (PX4 <-> ROS 2 DDS bridge).
 RUN git clone --depth 1 --branch v2.4.3 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git /opt/xrce \

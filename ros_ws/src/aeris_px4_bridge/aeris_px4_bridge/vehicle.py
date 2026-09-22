@@ -153,8 +153,12 @@ class Vehicle:
         target = self._to_local(self.waypoints[self.next_index])
         self._stream(target)
         self.offboard_ticks += 1
-        if self.offboard_ticks == 10:  # ~1 s of setpoints before switching, as PX4 requires
-            self._command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1.0, 6.0)  # custom: offboard
+        # PX4 needs ~1 s of setpoints before Offboard is accepted. Re-request mode and arming
+        # every 2 s until both hold; a single attempt is lost if a preflight check is briefly
+        # unhappy at that instant.
+        if self.offboard_ticks >= 10 and self.offboard_ticks % 20 == 10:
+            if self.state.nav_state != VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+                self._command(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1.0, 6.0)  # custom: offboard
             if not self.state.armed:
                 self._command(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)
         dx = target[0] - self.state.local_x

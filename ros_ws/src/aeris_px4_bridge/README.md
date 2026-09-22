@@ -19,7 +19,7 @@ means AERIS `drone-01` is PX4 instance 1 (topics under `/px4_1`, MAV_SYS_ID 2), 
 | `return_to_base` | `VEHICLE_CMD_NAV_RETURN_TO_LAUNCH`; setpoint streaming stops |
 | `hold` | streams the current local position as the setpoint |
 | (4 Hz) | publishes `telemetry` from `vehicle_global_position`, `vehicle_local_position`, `battery_status`, `vehicle_status` |
-| `/aeris/<drone>/observation` (`std_msgs/String` JSON) | forwarded as an `observation` message; this is the hook for a perception node or a simulated detector |
+| `/aeris/<drone_id>/observation` (hyphens become underscores, e.g. `/aeris/drone_01/observation` (`std_msgs/String` JSON) | forwarded as an `observation` message; this is the hook for a perception node or a simulated detector |
 
 Everything AERIS considers safety-critical (battery floors, geofence, separation, lost link)
 stays in the backend's Safety Governor. PX4's own failsafes remain active underneath.
