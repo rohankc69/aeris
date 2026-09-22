@@ -27,7 +27,6 @@ from aeris.domain.enums import (
     ZoneStatus,
 )
 from aeris.domain.models import MissionAssignment, OperatorAction, WaypointPlan
-from aeris.events.bus import EventBus
 from aeris.events.events import (
     DroneReturning,
     OperatorActionReceived,
@@ -52,14 +51,12 @@ class MissionManager:
         fleet: FleetAdapter,
         coverage_planner: CoveragePlanner,
         assignment_strategy: AssignmentStrategy,
-        bus: EventBus,
         clock: Clock,
     ) -> None:
         self._world = world
         self._fleet = fleet
         self._coverage = coverage_planner
         self._assign = assignment_strategy
-        self._bus = bus
         self._clock = clock
         self._trackers: dict[str, PlanProgressTracker] = {}
         self._plans: dict[str, WaypointPlan] = {}
@@ -266,7 +263,7 @@ class MissionManager:
             assigned_zone_id=zone_id,
             coverage_completed=zone.coverage,
         )
-        await self._bus.publish(
+        await self._world.publish(
             ZoneAssigned(
                 mission_id=snap.mission.mission_id,
                 zone_id=zone_id,
@@ -292,7 +289,7 @@ class MissionManager:
             next_status = DroneStatus.IDLE
         self._world.set_drone_status(drone_id, next_status, assigned_zone_id=None)
         self._drop_plan(drone_id)
-        await self._bus.publish(
+        await self._world.publish(
             ZoneReassignmentRequested(
                 mission_id=self._world.mission_id,
                 zone_id=zone.zone_id,
@@ -311,7 +308,7 @@ class MissionManager:
         result = await self._fleet.return_to_base(drone_id)
         if result.accepted:
             self._world.set_drone_status(drone_id, DroneStatus.RETURNING, assigned_zone_id=None)
-            await self._bus.publish(
+            await self._world.publish(
                 DroneReturning(mission_id=self._world.mission_id, drone_id=drone_id, reason=reason)
             )
 
@@ -330,7 +327,7 @@ class MissionManager:
             timestamp=self._clock.now(),
         )
         self._world.record_operator_action(action)
-        await self._bus.publish(
+        await self._world.publish(
             OperatorActionReceived(
                 mission_id=self._world.mission_id,
                 action_id=action.action_id,

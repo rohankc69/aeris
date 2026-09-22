@@ -88,7 +88,6 @@ class ScenarioRunner:
             fleet=self.fleet,
             coverage_planner=BoustrophedonPlanner(),
             assignment_strategy=GreedyAssignmentStrategy(),
-            bus=self.bus,
             clock=self.clock,
         )
 

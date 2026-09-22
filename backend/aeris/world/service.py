@@ -285,9 +285,13 @@ class WorldStateService:
 
     # ------------------------------------------------------------------ helpers
 
-    async def _publish(self, event: DomainEvent) -> None:
+    async def publish(self, event: DomainEvent) -> None:
+        """Append to the mission event log and forward to the bus. All mission events go here."""
         self._event_log.append(event)
         await self._bus.publish(event)
+
+    async def _publish(self, event: DomainEvent) -> None:
+        await self.publish(event)
 
     def _require_state(self, drone_id: str) -> DroneState:
         state = self._states.get(drone_id)
