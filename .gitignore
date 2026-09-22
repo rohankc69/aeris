@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# ROS / build
+ros_ws/build/
+ros_ws/install/
+ros_ws/log/
+
+# Evaluation output
+evals/out/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

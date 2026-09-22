@@ -1,0 +1,29 @@
+# AERIS Docker Compose.
+#
+# Nothing here is required for local development. The backend, dashboard, tests and every
+# simulation scenario run natively with `uv` and `pnpm` (fake fleet, mock AI, in-memory store).
+#
+#   docker compose up postgres            optional durable store (PostgreSQL + PostGIS)
+#   docker compose --profile px4 up       Phase 4 (planned): ROS 2 Jazzy + PX4 SITL + Gazebo, headless
+#
+# Backend and dashboard containers will be added once their Dockerfiles exist.
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: aeris
+      POSTGRES_PASSWORD: aeris
+      POSTGRES_DB: aeris
+    ports:
+      - "5432:5432"
+    volumes:
+      - aeris_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeris"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  aeris_pg:
