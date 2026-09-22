@@ -137,6 +137,11 @@ class Settings(BaseSettings):
 
     cors_origins: tuple[str, ...] = ("http://localhost:3000", "http://127.0.0.1:3000")
 
+    px4_bridge_url: str = Field(
+        default="ws://localhost:8765", description="aeris_px4_bridge WebSocket (fleet_provider=px4)"
+    )
+    px4_command_timeout_s: float = Field(5.0, gt=0)
+
     safety: SafetySettings = Field(default_factory=SafetySettings)
     decision: DecisionSettings = Field(default_factory=DecisionSettings)
     detection: DetectionSettings = Field(default_factory=DetectionSettings)

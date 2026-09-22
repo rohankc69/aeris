@@ -11,20 +11,12 @@ from pydantic import BaseModel
 from aeris.clock import SimClock
 from aeris.config import Settings, load_settings
 from aeris.decisions.base import DecisionProvider
-from aeris.decisions.engine import DecisionEngine
-from aeris.decisions.factory import build_decision_provider
-from aeris.decisions.rules import RuleBasedDecisionProvider
 from aeris.domain.enums import MissionStatus
 from aeris.events.bus import EventBus, InMemoryEventBus
 from aeris.events.events import DomainEvent
 from aeris.fleet.fake import FakeFleetAdapter, SimDroneConfig, SimSensorTarget
-from aeris.mission.manager import MissionManager
-from aeris.planning.assignment import GreedyAssignmentStrategy
-from aeris.planning.coverage import BoustrophedonPlanner
-from aeris.planning.partition import GridPartitioner
-from aeris.safety.governor import SafetyGovernor
+from aeris.mission.factory import build_mission_stack
 from aeris.simulation.scenario import Scenario, ScenarioEvent, ScenarioEventType
-from aeris.world.service import WorldStateService
 from aeris.world.snapshot import WorldSnapshot
 
 
@@ -68,10 +60,6 @@ class ScenarioRunner:
         self.clock = SimClock(start)
         self.bus = bus or InMemoryEventBus()
         self.settings = settings or load_settings()
-        self._safety = self.settings.safety
-        self.decision_provider = decision_provider or build_decision_provider(
-            self.settings, clock=self.clock
-        )
         self._elapsed_s = 0.0
         self._ticks = 0
         self._pending_events = sorted(scenario.events, key=lambda e: e.at_s)
@@ -81,13 +69,6 @@ class ScenarioRunner:
         self.bus.subscribe(None, self._count_event)
 
         mission = scenario.to_mission(created_at=self.clock.now())
-        zones = GridPartitioner(
-            cell_size_m=scenario.zone_size_m,
-            restricted_clearance_m=self._safety.restricted_clearance_m,
-        ).partition(mission.search_area.polygon, restricted=mission.restricted_regions)
-        self.world = WorldStateService(
-            mission=mission, zones=zones, bus=self.bus, clock=self.clock, safety=self._safety
-        )
         self.fleet = FakeFleetAdapter(
             base_position=scenario.base_position,
             clock=self.clock,
@@ -112,20 +93,18 @@ class ScenarioRunner:
             if scenario.missing_person
             else [],
         )
-        self.manager = MissionManager(
-            world=self.world,
+        stack = build_mission_stack(
+            mission=mission,
             fleet=self.fleet,
-            coverage_planner=BoustrophedonPlanner(),
-            assignment_strategy=GreedyAssignmentStrategy(),
-            safety=SafetyGovernor(self._safety),
             clock=self.clock,
-            decision_engine=DecisionEngine(
-                provider=self.decision_provider,
-                policy=RuleBasedDecisionProvider(safety=self._safety),
-                clock=self.clock,
-            ),
             settings=self.settings,
+            zone_size_m=scenario.zone_size_m,
+            decision_provider=decision_provider,
+            bus=self.bus,
         )
+        self.world = stack.world
+        self.manager = stack.manager
+        self.decision_provider = stack.decision_provider
 
     @property
     def elapsed_s(self) -> float:
