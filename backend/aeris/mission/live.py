@@ -49,6 +49,7 @@ class LiveMissionRunner:
         self.manager = stack.manager
         self.bus = stack.bus
         self.decision_provider = stack.decision_provider
+        self.metrics = stack.metrics
         self._started_at = self.clock.now()
 
     @property

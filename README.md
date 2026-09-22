@@ -170,6 +170,18 @@ A direct TypeSafe provider can sit behind the same `DecisionProvider` interface.
 and model id appear in every `DecisionRecord` and in telemetry. Never commit `.env`. See
 [docs/jev.md](docs/jev.md).
 
+## Evaluating decision providers
+
+```bash
+cd backend
+uv run aeris eval matrix --scenarios all --providers mock,rules
+uv run aeris eval replay evals/out/<result>.json --provider rules
+```
+
+Every run stores its `DecisionRecord`s, safety events and metrics as JSON so Jev, the rule
+policy and future models can be compared on identical scenarios and identical inputs. See
+[docs/evaluation.md](docs/evaluation.md).
+
 ## Offline mode
 
 Offline is the default. `mock` gives deterministic, scriptable answers for tests and demos;
@@ -209,9 +221,9 @@ need rescue. See [docs/safety.md](docs/safety.md).
 | 1 | Local simulation: three fake drones search a region, REST + WebSocket, basic dashboard ✅ |
 | 2 | Decision providers (Mock, Rules, Jev via OpenRouter), DecisionRecord, decision inspector, fallback ✅ |
 | 3 | Safety Governor extended (geofence, altitude, separation, plan validation, restricted regions), e-stop, dynamic reassignment ✅ |
-| 4 | ROS 2 / PX4 SITL / Gazebo with three vehicles ← **next** |
+| 4 | ROS 2 / PX4 SITL / Gazebo with three vehicles (code complete; first live run pending) |
 | 5 | Detection simulation, complete forest-search scenario ✅ |
-| 6 | Evaluation harness, docs, screenshots, contributor experience |
+| 6 | Evaluation harness, observability, docs, contributor experience ✅ |
 
 ## Contributing
 

@@ -154,7 +154,7 @@ All backend commands run from `backend/`; all dashboard commands from `dashboard
 cd backend
 uv sync --all-extras                 # install deps into .venv
 uv run uvicorn aeris.api.app:create_app --factory --reload   # dev server on :8000
-uv run aeris --help                  # CLI (sim now; eval in Phase 6)
+uv run aeris --help                  # CLI: sim, eval
 uv run aeris config                  # effective settings, secrets redacted
 ```
 
@@ -207,14 +207,17 @@ AERIS_FLEET_PROVIDER=px4 AERIS_PX4_BRIDGE_URL=ws://localhost:8765 uv run uvicorn
 ```
 See `docs/px4_bridge.md`. The ROS 2 package is `ros_ws/src/aeris_px4_bridge`.
 
-### Evaluation (Phase 6, *planned*)
+### Evaluation
 
 ```bash
 cd backend
-uv run aeris eval --scenario low_battery --provider rules
-uv run aeris eval --scenario low_battery --provider jev
+uv run aeris eval run --scenario low_battery --provider rules
+uv run aeris eval run --scenario low_battery --provider openrouter   # needs OPENROUTER_API_KEY
+uv run aeris eval matrix --scenarios all --providers mock,rules
 uv run aeris eval compare evals/out/*.json
+uv run aeris eval replay evals/out/<result>.json --provider rules
 ```
+See `docs/evaluation.md`. Metrics: `GET /api/v1/missions/{id}/metrics[/prometheus]`.
 
 ### Docker environment (optional)
 
@@ -252,7 +255,7 @@ DATABASE_URL=postgresql+asyncpg://aeris:aeris@localhost:5432/aeris
 | 3 | SafetyGovernor extended: geofence, altitude, separation, plan validation, restricted regions; e-stop; zone priority in assignment | done |
 | 4 | ROS 2 + PX4 SITL + Gazebo, PX4FleetAdapter, 3 vehicles | code complete; awaiting first Docker run |
 | 5 | Detection simulation, complete forest-search scenario | done |
-| 6 | Evaluation harness, docs, screenshots, contributor experience | planned |
+| 6 | Evaluation harness, observability, docs, contributor experience | done |
 
 At the end of each phase: run tests, run lint, fix failures, update docs (including this file),
 show what actually works, and name the next smallest useful milestone.
