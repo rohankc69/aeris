@@ -30,5 +30,5 @@ def _offline_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AERIS_ENV", "test")
     monkeypatch.setenv("AERIS_FLEET_PROVIDER", "fake")
     monkeypatch.setenv("AERIS_DECISION_PROVIDER", "mock")
-    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.delenv("DATABASE_URL", raising=False)

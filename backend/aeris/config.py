@@ -28,11 +28,19 @@ class FleetProvider(StrEnum):
 
 
 class DecisionProviderKind(StrEnum):
-    """Which decision provider answers bounded AI questions."""
+    """Which decision provider answers bounded AI questions.
+
+    ``openrouter`` reaches TypeSafe's Jev through OpenRouter as a model gateway. The gateway
+    is not the decision-maker; Jev is. ``mock`` and ``rules`` are offline.
+    """
 
     MOCK = "mock"
     RULES = "rules"
-    JEV = "jev"
+    OPENROUTER = "openrouter"
+
+    @property
+    def is_hosted(self) -> bool:
+        return self is DecisionProviderKind.OPENROUTER
 
 
 class SafetySettings(BaseModel):
@@ -65,13 +73,17 @@ class SafetySettings(BaseModel):
 
 
 class DecisionSettings(BaseModel):
-    """Timeouts and resilience for decision providers."""
+    """Timeouts, resilience and cadence for decision providers."""
 
     timeout_s: float = Field(3.0, gt=0)
     max_retries: int = Field(1, ge=0)
     circuit_breaker_failures: int = Field(3, ge=1)
     circuit_breaker_reset_s: float = Field(30.0, gt=0)
     human_review_probability_threshold: float = Field(0.6, ge=0, le=1)
+    disposition_interval_s: float = Field(
+        15.0, gt=0, description="Minimum simulated seconds between disposition decisions per drone"
+    )
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
 
 class Settings(BaseSettings):
@@ -90,9 +102,11 @@ class Settings(BaseSettings):
     decision_provider: DecisionProviderKind = DecisionProviderKind.MOCK
     decision_fallback: DecisionProviderKind = DecisionProviderKind.RULES
 
-    # Jev credentials are not prefixed with AERIS_ so they match the vendor's conventions.
-    typesafe_api_key: SecretStr | None = Field(default=None, validation_alias="TYPESAFE_API_KEY")
-    jev_model: str | None = Field(default=None, validation_alias="JEV_MODEL")
+    # Gateway/model credentials are not prefixed with AERIS_ so they match vendor conventions.
+    openrouter_api_key: SecretStr | None = Field(
+        default=None, validation_alias="OPENROUTER_API_KEY"
+    )
+    jev_model: str = Field(default="typesafe/jev-latest", validation_alias="JEV_MODEL")
 
     database_url: str | None = Field(default=None, validation_alias="DATABASE_URL")
 
@@ -102,14 +116,14 @@ class Settings(BaseSettings):
     decision: DecisionSettings = Field(default_factory=DecisionSettings)
 
     @model_validator(mode="after")
-    def _jev_requires_credentials(self) -> Settings:
-        if self.decision_provider is DecisionProviderKind.JEV and (
-            self.typesafe_api_key is None or not self.typesafe_api_key.get_secret_value()
+    def _hosted_provider_requires_credentials(self) -> Settings:
+        if self.decision_provider is DecisionProviderKind.OPENROUTER and not (
+            self.openrouter_api_key and self.openrouter_api_key.get_secret_value()
         ):
-            msg = "AERIS_DECISION_PROVIDER=jev requires TYPESAFE_API_KEY"
+            msg = "AERIS_DECISION_PROVIDER=openrouter requires OPENROUTER_API_KEY"
             raise ValueError(msg)
-        if self.decision_fallback is DecisionProviderKind.JEV:
-            msg = "AERIS_DECISION_FALLBACK cannot be jev; fallback must work offline"
+        if self.decision_fallback.is_hosted:
+            msg = "AERIS_DECISION_FALLBACK must be an offline provider (mock or rules)"
             raise ValueError(msg)
         return self
 
