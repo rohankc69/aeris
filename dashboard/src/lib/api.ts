@@ -39,7 +39,7 @@ export const api = {
     request<unknown>(`/api/v1/missions/${id}/candidates/${candidateId}/${action}`, {
       method: "POST",
     }),
-  droneCommand: (id: string, droneId: string, action: "return" | "hold") =>
+  droneCommand: (id: string, droneId: string, action: "return" | "hold" | "resume") =>
     request<unknown>(`/api/v1/missions/${id}/drones/${droneId}/${action}`, {
       method: "POST",
     }),

@@ -115,6 +115,9 @@ class MissionManager:
         self._last_decision_at: dict[str, datetime] = {}
         self._active_violations: dict[str, str] = {}
         self._safety_held: set[str] = set()
+        self._operator_held: set[str] = (
+            set()
+        )  # an operator hold persists until the operator resumes
         self._clear_streak: dict[str, int] = {}
         self._blocked_assignments: set[tuple[str, str]] = set()
         self._estop_active = False
@@ -281,12 +284,27 @@ class MissionManager:
         await self._record_action(OperatorActionType.RETURN_DRONE, target_id=drone_id)
         await self._send_home(drone_id, "operator return")
 
+    async def resume_drone(self, drone_id: str) -> None:
+        """Operator lifts a hold. With a zone the plan is re-sent; without one the drone
+        becomes IDLE and the next assignment round picks it up. Safety rules still apply."""
+        await self._record_action(OperatorActionType.RESUME_DRONE, target_id=drone_id)
+        state = self._world.drone_state(drone_id)
+        if state is None or state.status is not DroneStatus.HOLDING:
+            return
+        self._safety_held.discard(drone_id)
+        self._operator_held.discard(drone_id)
+        if state.assigned_zone_id is not None:
+            await self._apply_disposition(drone_id, Disposition.CONTINUE_SEARCH, "operator resume")
+        else:
+            self._world.set_drone_status(drone_id, DroneStatus.IDLE, assigned_zone_id=None)
+
     async def hold_drone(self, drone_id: str) -> None:
         await self._record_action(OperatorActionType.HOLD_DRONE, target_id=drone_id)
         state = self._world.drone_state(drone_id)
         if state is None:
             return
         if (await self._fleet.hold(drone_id)).accepted:
+            self._operator_held.add(drone_id)
             self._world.set_drone_status(
                 drone_id,
                 DroneStatus.HOLDING,
@@ -596,8 +614,8 @@ class MissionManager:
                 continue
             if state.status not in {DroneStatus.SEARCHING, DroneStatus.HOLDING}:
                 continue
-            if state.assigned_zone_id is None:
-                continue
+            if state.assigned_zone_id is None or view.drone.drone_id in self._operator_held:
+                continue  # never let a model lift an operator's hold
             last = self._last_decision_at.get(view.drone.drone_id)
             if last and (snap.taken_at - last).total_seconds() < self._disposition_interval_s:
                 continue
@@ -904,6 +922,7 @@ class MissionManager:
             await self._release_zone(drone_id, reason)
         if drone_id in self._investigations:
             await self._end_investigation(drone_id)
+        self._operator_held.discard(drone_id)
         result = await self._fleet.return_to_base(drone_id)
         if result.accepted:
             self._world.set_drone_status(drone_id, DroneStatus.RETURNING, assigned_zone_id=None)

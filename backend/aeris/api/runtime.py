@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 SUBSCRIBER_QUEUE_SIZE = 256
 
 
+class FleetBusyError(RuntimeError):
+    """A physical (or SITL) fleet can serve one live mission at a time."""
+
+
 @dataclass
 class MissionRuntime:
     runner: Runner
@@ -77,6 +81,17 @@ class MissionRegistry:
     async def create(self, scenario: Scenario, *, time_scale: float) -> MissionRuntime:
         runner: Runner
         if self._settings.fleet_provider is FleetProvider.PX4:
+            live = [
+                r
+                for r in self._missions.values()
+                if r.fleet_kind == "px4" and not r.runner.world.mission.status.is_terminal
+            ]
+            if live:
+                msg = (
+                    f"mission {live[0].mission_id} is still {live[0].runner.world.mission.status} "
+                    "on the PX4 fleet; abort or complete it before starting another"
+                )
+                raise FleetBusyError(msg)
             adapter = PX4FleetAdapter(
                 bridge_url=self._settings.px4_bridge_url,
                 command_timeout_s=self._settings.px4_command_timeout_s,

@@ -154,6 +154,54 @@ async def test_candidate_confirmation_over_http(client: AsyncClient) -> None:
     assert detections[0]["detection_id"] == detection_id
 
 
+async def test_hold_then_resume_drone_over_http(client: AsyncClient) -> None:
+    mission_id = (
+        await client.post(
+            "/api/v1/missions",
+            json={"scenario": "basic_search", "time_scale": 200, "autostart": True},
+        )
+    ).json()["mission_id"]
+    await asyncio.sleep(0.3)
+    held = await client.post(f"/api/v1/missions/{mission_id}/drones/drone-01/hold")
+    assert held.status_code == 200
+    await asyncio.sleep(0.1)
+    state = next(
+        d
+        for d in (await client.get(f"/api/v1/missions/{mission_id}/drones")).json()
+        if d["drone"]["drone_id"] == "drone-01"
+    )["state"]
+    assert state["status"] == "HOLDING"
+    resumed = await client.post(f"/api/v1/missions/{mission_id}/drones/drone-01/resume")
+    assert resumed.status_code == 200
+    await asyncio.sleep(0.2)
+    state = next(
+        d
+        for d in (await client.get(f"/api/v1/missions/{mission_id}/drones")).json()
+        if d["drone"]["drone_id"] == "drone-01"
+    )["state"]
+    assert state["status"] in {"SEARCHING", "IDLE"}
+
+
+async def test_second_live_mission_on_px4_fleet_is_refused() -> None:
+    from aeris.config import load_settings  # noqa: PLC0415
+
+    app = create_app(
+        load_settings(_env_file=None, fleet_provider="px4", px4_bridge_url="ws://127.0.0.1:1")
+    )
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            first = await ac.post("/api/v1/missions", json={"scenario": "basic_search"})
+            assert first.status_code == 201 and first.json()["fleet"] == "px4"
+            second = await ac.post("/api/v1/missions", json={"scenario": "basic_search"})
+            assert second.status_code == 409
+            assert "still" in second.json()["detail"]
+            aborted = await ac.post(f"/api/v1/missions/{first.json()['mission_id']}/abort")
+            assert aborted.status_code == 200
+            third = await ac.post("/api/v1/missions", json={"scenario": "basic_search"})
+            assert third.status_code == 201
+
+
 async def test_validation_errors(client: AsyncClient) -> None:
     both = await client.post(
         "/api/v1/missions", json={"scenario": "basic_search", "spec": None, "time_scale": 0}

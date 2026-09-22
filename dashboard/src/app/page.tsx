@@ -55,6 +55,7 @@ export default function CommandCenter() {
           onSelect={setSelectedDrone}
           onReturn={(id) => missionId && api.droneCommand(missionId, id, "return")}
           onHold={(id) => missionId && api.droneCommand(missionId, id, "hold")}
+          onResume={(id) => missionId && api.droneCommand(missionId, id, "resume")}
           decisions={decisions}
         />
       </aside>
