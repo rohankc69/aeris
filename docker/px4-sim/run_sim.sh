@@ -21,6 +21,7 @@ export PX4_PARAM_NAV_DLL_ACT=0          # no ground-station link in headless SIT
 export PX4_PARAM_COM_RCL_EXCEPT=4       # RC loss is not a failure while in Offboard (bit 2)
 export PX4_PARAM_CBRK_SUPPLY_CHK=894281 # simulated vehicles have no power module
 export PX4_PARAM_COM_ARM_MIS_REQ=0      # AERIS streams setpoints; no uploaded mission required to arm
+export PX4_PARAM_SIM_BAT_DRAIN="${PX4_SIM_BAT_DRAIN:-1500}"  # seconds to drain the simulated battery (default ~10 min is too short for a sweep)
 
 echo "[sim] starting Micro XRCE-DDS agent on udp/8888"
 MicroXRCEAgent udp4 -p 8888 >/tmp/xrce.log 2>&1 &
