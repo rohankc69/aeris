@@ -17,8 +17,9 @@ from aeris.planning.geo_frame import LocalFrame
 class PlanProgressTracker:
     def __init__(self, plan: WaypointPlan, *, on_track_tolerance_m: float = 25.0) -> None:
         self.plan = plan
-        self._frame = LocalFrame(plan.waypoints[0].position)
-        points = [self._frame.to_local(w.position) for w in plan.waypoints]
+        search = plan.search_waypoints
+        self._frame = LocalFrame(search[0].position)
+        points = [self._frame.to_local(w.position) for w in search]
         self._line = LineString(points) if len(points) > 1 else None
         self._single = points[0]
         self._tolerance = on_track_tolerance_m

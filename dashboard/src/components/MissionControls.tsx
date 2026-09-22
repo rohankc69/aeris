@@ -7,10 +7,11 @@ import type { MissionStatus, MissionSummary } from "@/lib/types";
 interface Props {
   missionId: string | null;
   status: MissionStatus | null;
+  estop: boolean;
   onMissionChange: (id: string) => void;
 }
 
-export function MissionControls({ missionId, status, onMissionChange }: Props) {
+export function MissionControls({ missionId, status, estop, onMissionChange }: Props) {
   const [scenarios, setScenarios] = useState<string[]>([]);
   const [scenario, setScenario] = useState("basic_search");
   const [timeScale, setTimeScale] = useState(5);
@@ -67,6 +68,11 @@ export function MissionControls({ missionId, status, onMissionChange }: Props) {
           <button disabled={status !== "ACTIVE"} onClick={() => run(() => api.command(missionId, "pause"))}>Pause</button>
           <button disabled={status !== "PAUSED"} onClick={() => run(() => api.command(missionId, "resume"))}>Resume</button>
           <button disabled={!status || ["COMPLETED", "ABORTED", "PERSON_LOCATED"].includes(status)} onClick={() => run(() => api.command(missionId, "abort"))}>Abort</button>
+          {estop ? (
+            <button className="estop active" onClick={() => run(() => api.command(missionId, "estop/clear"))}>Clear E-STOP</button>
+          ) : (
+            <button className="estop" disabled={!status || status === "CREATED" || ["COMPLETED", "ABORTED", "PERSON_LOCATED"].includes(status)} onClick={() => run(() => api.command(missionId, "estop"))}>E-STOP</button>
+          )}
         </>
       )}
       {error && <span className="small" style={{ color: "var(--danger)" }}>{error}</span>}

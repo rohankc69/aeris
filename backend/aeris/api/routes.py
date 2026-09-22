@@ -14,7 +14,7 @@ from fastapi import (
     status,
 )
 
-from aeris.api.runtime import MissionRegistry, MissionRuntime, snapshot_payload
+from aeris.api.runtime import MissionRegistry, MissionRuntime
 from aeris.api.schemas import CommandResponse, CreateMissionRequest, MissionSummary
 from aeris.config import Settings
 from aeris.simulation.scenario import list_scenarios, load_scenario
@@ -55,6 +55,9 @@ def _summary(runtime: MissionRuntime) -> MissionSummary:
         coverage_fraction=snap.coverage_fraction,
         zone_count=len(snap.zones),
         drone_count=len(snap.drones),
+        emergency_stop_active=runtime.runner.manager.emergency_stop_active,
+        decision_count=len(runtime.runner.world.decisions),
+        safety_event_count=len(runtime.runner.world.safety_events),
     )
 
 
@@ -106,14 +109,14 @@ async def get_mission(mission_id: str, registry: Registry) -> dict[str, object]:
     runtime = _runtime_or_404(registry, mission_id)
     return {
         "summary": _summary(runtime).model_dump(mode="json"),
-        **snapshot_payload(runtime.runner.world.snapshot()),
+        **runtime.payload(),
     }
 
 
 @router.get("/missions/{mission_id}/drones")
 async def get_drones(mission_id: str, registry: Registry) -> list[dict[str, object]]:
     runtime = _runtime_or_404(registry, mission_id)
-    payload = snapshot_payload(runtime.runner.world.snapshot())
+    payload = runtime.payload()
     drones: list[dict[str, object]] = payload["drones"]  # type: ignore[assignment]
     return drones
 
@@ -207,6 +210,20 @@ async def abort_mission(mission_id: str, registry: Registry) -> CommandResponse:
     return _command_response(runtime, "aborted")
 
 
+@router.post("/missions/{mission_id}/estop")
+async def emergency_stop(mission_id: str, registry: Registry) -> CommandResponse:
+    runtime = _runtime_or_404(registry, mission_id)
+    await runtime.runner.manager.emergency_stop()
+    return _command_response(runtime, "emergency stop active")
+
+
+@router.post("/missions/{mission_id}/estop/clear")
+async def clear_emergency_stop(mission_id: str, registry: Registry) -> CommandResponse:
+    runtime = _runtime_or_404(registry, mission_id)
+    await runtime.runner.manager.clear_emergency_stop()
+    return _command_response(runtime, "emergency stop cleared; mission remains paused")
+
+
 @router.post("/missions/{mission_id}/drones/{drone_id}/return")
 async def return_drone(mission_id: str, drone_id: str, registry: Registry) -> CommandResponse:
     runtime = _runtime_or_404(registry, mission_id)
@@ -238,9 +255,7 @@ async def mission_stream(websocket: WebSocket, mission_id: str) -> None:
     await websocket.accept()
     queue = runtime.subscribe()
     try:
-        await websocket.send_json(
-            {"kind": "snapshot", "data": snapshot_payload(runtime.runner.world.snapshot())}
-        )
+        await websocket.send_json({"kind": "snapshot", "data": runtime.payload()})
         while True:
             message = await queue.get()
             await websocket.send_json(message)

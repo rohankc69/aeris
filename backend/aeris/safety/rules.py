@@ -88,6 +88,54 @@ class LinkLostRule:
         return None
 
 
+class MaxAltitudeRule:
+    name = "max_altitude"
+
+    def evaluate(self, ctx: RuleContext) -> Violation | None:
+        limit = ctx.settings.max_altitude_m
+        if ctx.state.position.altitude_m > limit:
+            reason = f"altitude {ctx.state.position.altitude_m:.0f} m exceeds {limit:.0f} m"
+            return Violation(self.name, reason, Disposition.RETURN_TO_BASE)
+        return None
+
+
+class MinimumSeparationRule:
+    """Two airborne searching drones too close: the lexically later id holds until clear.
+
+    Traffic inside ``separation_exempt_radius_m`` of base is exempt, as at any shared launch
+    and recovery site.
+    """
+
+    name = "minimum_separation"
+
+    def evaluate(self, ctx: RuleContext) -> Violation | None:
+        me = ctx.state
+        if me.status is not DroneStatus.SEARCHING or me.position.altitude_m <= 0:
+            return None
+        base = ctx.snapshot.mission.base_position
+        if me.position.distance_to(base) <= ctx.settings.separation_exempt_radius_m:
+            return None
+        for other in ctx.snapshot.drones:
+            o = other.state
+            if o is None or other.drone.drone_id <= ctx.view.drone.drone_id:
+                continue
+            if (
+                o.status not in {DroneStatus.SEARCHING, DroneStatus.HOLDING}
+                or o.position.altitude_m <= 0
+            ):
+                continue
+            if o.link_state is not LinkState.CONNECTED:
+                continue
+            if o.position.distance_to(base) <= ctx.settings.separation_exempt_radius_m:
+                continue
+            distance = me.position.distance_to(o.position)
+            if distance < ctx.settings.min_separation_m:
+                limit = ctx.settings.min_separation_m
+                reason = f"{distance:.0f} m from {other.drone.drone_id}, below {limit:.0f} m"
+                return Violation(self.name, reason, Disposition.HOLD)
+        return None
+
+
 class MissionNotActiveRule:
     name = "mission_not_active"
 
@@ -105,5 +153,7 @@ def default_rules() -> list[SafetyRule]:
         MandatoryReturnBatteryRule(),
         ReturnMarginRule(),
         LinkLostRule(),
+        MaxAltitudeRule(),
         MissionNotActiveRule(),
+        MinimumSeparationRule(),
     ]

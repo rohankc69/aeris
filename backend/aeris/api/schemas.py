@@ -33,6 +33,9 @@ class MissionSummary(BaseModel):
     coverage_fraction: float
     zone_count: int
     drone_count: int
+    emergency_stop_active: bool = False
+    decision_count: int = 0
+    safety_event_count: int = 0
 
 
 class CommandResponse(BaseModel):

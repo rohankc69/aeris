@@ -19,6 +19,7 @@ export default function CommandCenter() {
   const { snapshot, events, decisions, safetyEvents, connected } = useMissionStream(missionId);
   const status = snapshot?.mission.status ?? null;
   const overrides = decisions.filter((d) => d.safety_override).length;
+  const estop = snapshot?.emergency_stop_active ?? false;
 
   return (
     <main className="console">
@@ -31,7 +32,8 @@ export default function CommandCenter() {
             <span className="small">{connected ? "● live" : "○ offline"}</span>
           </>
         )}
-        <MissionControls missionId={missionId} status={status} onMissionChange={setMissionId} />
+        {estop && <span className="status-pill ABORTED">E-STOP</span>}
+        <MissionControls missionId={missionId} status={status} estop={estop} onMissionChange={setMissionId} />
       </header>
 
       <MissionMap snapshot={snapshot} selectedDrone={selectedDrone} onSelectDrone={setSelectedDrone} />

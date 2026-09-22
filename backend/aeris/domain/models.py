@@ -161,6 +161,14 @@ class WaypointPlan(_Frozen):
     start_fraction: float = Field(
         0.0, ge=0, le=1, description="Fraction of the zone already covered"
     )
+    transit_count: int = Field(
+        0, ge=0, description="Leading waypoints that only route the drone to the search path"
+    )
+
+    @property
+    def search_waypoints(self) -> tuple[Waypoint, ...]:
+        """Waypoints that cover ground, excluding any transit detour."""
+        return self.waypoints[self.transit_count :] or self.waypoints[-1:]
 
     @property
     def length_m(self) -> float:
@@ -296,6 +304,12 @@ class Mission(_Frozen):
     status: MissionStatus = MissionStatus.CREATED
     search_area: SearchArea
     base_position: GeoPoint
+    restricted_regions: tuple[GeoPolygon, ...] = Field(
+        default=(), description="No-fly polygons inside or near the search area"
+    )
+    last_known_position: GeoPoint | None = Field(
+        default=None, description="Where the missing person was last reported"
+    )
     drone_ids: tuple[str, ...] = ()
     created_at: datetime = Field(default_factory=utc_now)
     started_at: datetime | None = None

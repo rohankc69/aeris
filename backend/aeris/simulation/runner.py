@@ -77,9 +77,10 @@ class ScenarioRunner:
         self.bus.subscribe(None, self._count_event)
 
         mission = scenario.to_mission(created_at=self.clock.now())
-        zones = GridPartitioner(cell_size_m=scenario.zone_size_m).partition(
-            mission.search_area.polygon
-        )
+        zones = GridPartitioner(
+            cell_size_m=scenario.zone_size_m,
+            restricted_clearance_m=self._safety.restricted_clearance_m,
+        ).partition(mission.search_area.polygon, restricted=mission.restricted_regions)
         self.world = WorldStateService(
             mission=mission, zones=zones, bus=self.bus, clock=self.clock, safety=self._safety
         )
@@ -108,7 +109,7 @@ class ScenarioRunner:
                 policy=RuleBasedDecisionProvider(safety=self._safety),
                 clock=self.clock,
             ),
-            disposition_interval_s=self.settings.decision.disposition_interval_s,
+            decision_settings=self.settings.decision,
         )
 
     @property

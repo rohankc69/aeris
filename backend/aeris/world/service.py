@@ -237,6 +237,11 @@ class WorldStateService:
         self._zones[zone_id] = zone.model_copy(update={"status": status, **updates})
         return self._zones[zone_id]
 
+    def set_zone_priority(self, zone_id: str, priority: float) -> SearchZone:
+        zone = self._zones[zone_id]
+        self._zones[zone_id] = zone.model_copy(update={"priority": min(1.0, max(0.0, priority))})
+        return self._zones[zone_id]
+
     async def update_zone_coverage(
         self, zone_id: str, drone_id: str, coverage: float
     ) -> SearchZone:
