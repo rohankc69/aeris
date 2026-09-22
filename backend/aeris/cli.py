@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from pathlib import Path
 from typing import Annotated
@@ -18,6 +19,7 @@ from aeris.evaluation import (
     run_evaluation,
 )
 from aeris.evaluation.harness import EvalResult, write_json
+from aeris.eventfeed import clock, describe
 from aeris.simulation import ScenarioRunner, list_scenarios, load_scenario
 
 app = typer.Typer(help="AERIS: multi-drone search-and-rescue coordination.", no_args_is_help=True)
@@ -59,6 +61,9 @@ def sim_run(
     ] = None,
     output: Annotated[Path | None, typer.Option(help="Write the summary JSON to this file")] = None,
     quiet: Annotated[bool, typer.Option(help="Suppress per-minute progress lines")] = False,
+    events: Annotated[
+        bool, typer.Option(help="Stream every decision, safety and mission event as it happens")
+    ] = False,
 ) -> None:
     """Run a scenario headless with the fake fleet and print a summary."""
     spec = load_scenario(scenario)
@@ -73,10 +78,20 @@ def sim_run(
     runner = ScenarioRunner(spec)
     last_minute = -1
 
+    if events:
+
+        async def feed(event: object) -> None:
+            data = event.model_dump(mode="json")  # type: ignore[attr-defined]
+            line = describe(event.type_name, data)  # type: ignore[attr-defined]
+            if line:
+                typer.echo(f"{clock(runner.elapsed_s)} {line}")
+
+        runner.bus.subscribe(None, feed)
+
     def progress(snap: object) -> None:
         nonlocal last_minute
         minute = int(runner.elapsed_s // 60)
-        if quiet or minute == last_minute:
+        if quiet or events or minute == last_minute:
             return
         last_minute = minute
         s = runner.world.snapshot()
@@ -179,3 +194,30 @@ def eval_replay(
             indent=2,
         )
     )
+
+
+@app.command()
+def watch(
+    mission_id: Annotated[str, typer.Argument(help="Mission id from POST /api/v1/missions")],
+    url: Annotated[str, typer.Option(help="Backend base URL")] = "http://localhost:8000",
+) -> None:
+    """Tail a running mission's events from the terminal (dashboard or PX4 missions alike)."""
+    import websockets  # noqa: PLC0415
+
+    ws_url = url.replace("http", "ws", 1) + f"/api/v1/missions/{mission_id}/ws"
+
+    async def tail() -> None:
+        async with websockets.connect(ws_url) as conn:
+            typer.echo(f"watching {mission_id} at {ws_url}")
+            async for raw in conn:
+                message = json.loads(raw)
+                if message.get("kind") != "event":
+                    continue
+                data = message["data"]
+                line = describe(str(data.get("event_type")), data)
+                if line:
+                    stamp = str(data.get("timestamp", ""))[11:19]
+                    typer.echo(f"{stamp} {line}")
+
+    with contextlib.suppress(KeyboardInterrupt):
+        asyncio.run(tail())
