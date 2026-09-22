@@ -1,0 +1,129 @@
+// Wire types mirroring the backend's snapshot payload. Keep in sync with
+// backend/aeris/api/runtime.py::snapshot_payload and the domain enums.
+
+export type MissionStatus =
+  | "CREATED"
+  | "ACTIVE"
+  | "PAUSED"
+  | "PERSON_LOCATED"
+  | "COMPLETED"
+  | "ABORTED";
+
+export type DroneStatus =
+  | "IDLE"
+  | "SEARCHING"
+  | "INVESTIGATING"
+  | "HOLDING"
+  | "RETURNING"
+  | "LANDED"
+  | "UNAVAILABLE";
+
+export type LinkState = "CONNECTED" | "DEGRADED" | "STALE" | "LOST";
+
+export type ZoneStatus =
+  | "UNSEARCHED"
+  | "ASSIGNED"
+  | "SEARCHING"
+  | "PARTIAL"
+  | "COMPLETE"
+  | "REQUIRES_RECHECK";
+
+export interface GeoPoint {
+  latitude: number;
+  longitude: number;
+  altitude_m: number;
+}
+
+export interface GeoPolygon {
+  vertices: GeoPoint[];
+}
+
+export interface Mission {
+  mission_id: string;
+  name: string;
+  status: MissionStatus;
+  base_position: GeoPoint;
+  search_area: { polygon: GeoPolygon; search_altitude_m: number };
+  started_at: string | null;
+}
+
+export interface DroneCapability {
+  camera: boolean;
+  thermal: boolean;
+  cruise_speed_mps: number;
+}
+
+export interface DroneState {
+  drone_id: string;
+  timestamp: string;
+  position: GeoPoint;
+  heading_deg: number;
+  velocity_mps: number;
+  battery_percent: number;
+  estimated_remaining_s: number;
+  connection_quality: number;
+  link_state: LinkState;
+  status: DroneStatus;
+  assigned_zone_id: string | null;
+  coverage_completed: number;
+  camera_available: boolean;
+  thermal_available: boolean;
+}
+
+export interface DroneView {
+  drone: { drone_id: string; name: string; capability: DroneCapability };
+  state: DroneState | null;
+  telemetry_age_s: number | null;
+  link_state: LinkState;
+}
+
+export interface Zone {
+  zone_id: string;
+  polygon: GeoPolygon;
+  priority: number;
+  coverage: number;
+  assigned_drone_id: string | null;
+  status: ZoneStatus;
+}
+
+export interface Detection {
+  detection_id: string;
+  position: GeoPoint;
+  zone_id: string | null;
+  triage: string | null;
+}
+
+export interface Snapshot {
+  taken_at: string;
+  snapshot_hash: string;
+  mission: Mission;
+  coverage_fraction: number;
+  drones: DroneView[];
+  zones: Zone[];
+  detections: Detection[];
+}
+
+export interface MissionSummary {
+  mission_id: string;
+  name: string;
+  status: MissionStatus;
+  scenario: string;
+  time_scale: number;
+  running: boolean;
+  elapsed_s: number;
+  coverage_fraction: number;
+  zone_count: number;
+  drone_count: number;
+}
+
+export interface DomainEvent {
+  event_id: string;
+  event_type: string;
+  timestamp: string;
+  mission_id: string;
+  [key: string]: unknown;
+}
+
+export type StreamMessage =
+  | { kind: "snapshot"; data: Snapshot }
+  | { kind: "event"; data: DomainEvent };

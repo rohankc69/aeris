@@ -1,0 +1,223 @@
+:root {
+  --bg: #0f1419;
+  --panel: #171d24;
+  --panel-border: #263039;
+  --text: #e6edf3;
+  --muted: #8b98a5;
+  --accent: #4cc2ff;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --danger: #f85149;
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+}
+
+.console {
+  display: grid;
+  grid-template-rows: 48px 1fr 200px;
+  grid-template-columns: 1fr 320px;
+  height: 100vh;
+}
+
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--panel);
+}
+
+.topbar h1 {
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  margin: 0;
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+.map {
+  position: relative;
+  min-height: 0;
+}
+
+.panel {
+  background: var(--panel);
+  border-left: 1px solid var(--panel-border);
+  overflow: auto;
+  padding: 12px;
+}
+
+.panel h2,
+.bottom h2 {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.bottom {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  border-top: 1px solid var(--panel-border);
+  background: var(--panel);
+  min-height: 0;
+}
+
+.bottom > div {
+  padding: 12px;
+  overflow: auto;
+}
+
+.bottom > div + div {
+  border-left: 1px solid var(--panel-border);
+}
+
+.drone {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.drone.selected {
+  border-color: var(--accent);
+}
+
+.drone .name {
+  font-weight: 600;
+}
+
+.drone .status {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.battery {
+  font-family: var(--mono);
+}
+
+.battery.ok { color: var(--ok); }
+.battery.warn { color: var(--warn); }
+.battery.danger { color: var(--danger); }
+
+.link {
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.link.CONNECTED { color: var(--ok); }
+.link.DEGRADED { color: var(--warn); }
+.link.STALE { color: var(--warn); }
+.link.LOST { color: var(--danger); }
+
+.details {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--muted);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  margin-top: 6px;
+}
+
+.details dt { color: var(--muted); }
+.details dd { margin: 0; color: var(--text); font-family: var(--mono); }
+
+.coverage {
+  height: 14px;
+  background: #0b0f14;
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 6px 0 12px;
+}
+
+.coverage > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.events {
+  font-family: var(--mono);
+  font-size: 12px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.events li {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid #1c242c;
+}
+
+.events .time { color: var(--muted); }
+
+button,
+select,
+input {
+  background: #0b0f14;
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font: inherit;
+}
+
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.status-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: var(--mono);
+  border: 1px solid var(--panel-border);
+}
+.status-pill.ACTIVE { color: var(--ok); border-color: var(--ok); }
+.status-pill.PAUSED { color: var(--warn); border-color: var(--warn); }
+.status-pill.ABORTED { color: var(--danger); border-color: var(--danger); }
+.status-pill.COMPLETED,
+.status-pill.PERSON_LOCATED { color: var(--accent); border-color: var(--accent); }
+
+.zone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.zone-grid > div {
+  padding: 4px 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+}
+
+.small { font-size: 12px; color: var(--muted); }
