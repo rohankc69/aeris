@@ -17,7 +17,7 @@ from aeris.decisions.rules import RuleBasedDecisionProvider
 from aeris.domain.enums import MissionStatus
 from aeris.events.bus import EventBus, InMemoryEventBus
 from aeris.events.events import DomainEvent
-from aeris.fleet.fake import FakeFleetAdapter, SimDroneConfig
+from aeris.fleet.fake import FakeFleetAdapter, SimDroneConfig, SimSensorTarget
 from aeris.mission.manager import MissionManager
 from aeris.planning.assignment import GreedyAssignmentStrategy
 from aeris.planning.coverage import BoustrophedonPlanner
@@ -38,6 +38,9 @@ class SimulationSummary(BaseModel):
     zones_total: int
     zones_complete: int
     reassignments: int
+    detections: int
+    candidates: int
+    person_located_at_s: float | None
     decisions: int
     safety_overrides: int
     decision_provider: str
@@ -73,6 +76,7 @@ class ScenarioRunner:
         self._ticks = 0
         self._pending_events = sorted(scenario.events, key=lambda e: e.at_s)
         self._applied_events = 0
+        self._person_located_at_s: float | None = None
         self._event_counts: dict[str, int] = {}
         self.bus.subscribe(None, self._count_event)
 
@@ -96,6 +100,17 @@ class ScenarioRunner:
                 )
                 for d in scenario.drones
             ],
+            targets=[
+                SimSensorTarget(
+                    position=scenario.missing_person.position,
+                    range_m=scenario.missing_person.detection_range_m,
+                    thermal_confidence=scenario.missing_person.thermal_confidence,
+                    visual_confidence=scenario.missing_person.visual_confidence,
+                    cooldown_s=scenario.missing_person.sighting_cooldown_s,
+                )
+            ]
+            if scenario.missing_person
+            else [],
         )
         self.manager = MissionManager(
             world=self.world,
@@ -109,7 +124,7 @@ class ScenarioRunner:
                 policy=RuleBasedDecisionProvider(safety=self._safety),
                 clock=self.clock,
             ),
-            decision_settings=self.settings.decision,
+            settings=self.settings,
         )
 
     @property
@@ -130,7 +145,7 @@ class ScenarioRunner:
         self._elapsed_s += dt
         self._ticks += 1
         self.fleet.advance(dt)
-        self._apply_due_events()
+        await self._apply_due_events()
         return await self.manager.tick()
 
     async def run(
@@ -174,6 +189,9 @@ class ScenarioRunner:
             zones_total=len(snap.zones),
             zones_complete=sum(z.status.value == "COMPLETE" for z in snap.zones),
             reassignments=self._event_counts.get("ZoneReassignmentRequested", 0),
+            detections=len(snap.detections),
+            candidates=len(snap.candidates),
+            person_located_at_s=self._person_located_at_s,
             decisions=len(self.world.decisions),
             safety_overrides=len(self.world.safety_events),
             decision_provider=self.decision_provider.name,
@@ -183,18 +201,41 @@ class ScenarioRunner:
 
     # ------------------------------------------------------------------ internals
 
-    def _apply_due_events(self) -> None:
+    async def _apply_due_events(self) -> None:
         while self._pending_events and self._pending_events[0].at_s <= self._elapsed_s:
-            self._apply(self._pending_events.pop(0))
+            await self._apply(self._pending_events.pop(0))
             self._applied_events += 1
 
-    def _apply(self, event: ScenarioEvent) -> None:
+    async def _apply(self, event: ScenarioEvent) -> None:
+        drone_id = event.drone_id or ""
         if event.type is ScenarioEventType.BATTERY_DRAIN_MULTIPLIER:
-            self.fleet.set_battery_drain_multiplier(event.drone_id, float(event.value))
+            self.fleet.set_battery_drain_multiplier(drone_id, float(event.value))
         elif event.type is ScenarioEventType.BATTERY_SET:
-            self.fleet.set_battery(event.drone_id, float(event.value))
+            self.fleet.set_battery(drone_id, float(event.value))
         elif event.type is ScenarioEventType.LINK_SET:
-            self.fleet.set_link(event.drone_id, online=bool(event.value))
+            self.fleet.set_link(drone_id, online=bool(event.value))
+        elif event.type is ScenarioEventType.DETECTION:
+            position = event.position or (
+                self.scenario.missing_person.position if self.scenario.missing_person else None
+            )
+            if position is not None and event.source is not None:
+                self.fleet.inject_observation(
+                    drone_id,
+                    source=event.source,
+                    confidence=float(event.value),
+                    position=position,
+                    movement_observed=event.movement,
+                )
+        elif event.type in {ScenarioEventType.OPERATOR_CONFIRM, ScenarioEventType.OPERATOR_REJECT}:
+            open_candidates = self.world.snapshot().open_candidates
+            if open_candidates:
+                candidate = open_candidates[0]
+                if event.type is ScenarioEventType.OPERATOR_CONFIRM:
+                    await self.manager.confirm_candidate(candidate.candidate_id, note=event.note)
+                else:
+                    await self.manager.reject_candidate(candidate.candidate_id, note=event.note)
 
     async def _count_event(self, event: DomainEvent) -> None:
         self._event_counts[event.type_name] = self._event_counts.get(event.type_name, 0) + 1
+        if event.type_name == "SurvivorConfirmed" and self._person_located_at_s is None:
+            self._person_located_at_s = self._elapsed_s

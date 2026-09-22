@@ -125,6 +125,35 @@ async def test_emergency_stop_over_http(client: AsyncClient) -> None:
     )
 
 
+async def test_candidate_confirmation_over_http(client: AsyncClient) -> None:
+    mission_id = (
+        await client.post(
+            "/api/v1/missions",
+            json={"scenario": "candidate_detection", "time_scale": 1000, "autostart": True},
+        )
+    ).json()["mission_id"]
+    for _ in range(200):
+        candidates = (await client.get(f"/api/v1/missions/{mission_id}/candidates")).json()
+        if candidates:
+            break
+        await asyncio.sleep(0.05)
+    assert candidates, "scenario should escalate a candidate"
+    candidate_id = candidates[0]["candidate_id"]
+    detection_id = candidates[0]["detection_id"]
+
+    confirmed = await client.post(
+        f"/api/v1/missions/{mission_id}/candidates/{candidate_id}/confirm"
+    )
+    assert confirmed.status_code == 200
+    assert confirmed.json()["status"] == "PERSON_LOCATED"
+    again = await client.post(f"/api/v1/missions/{mission_id}/candidates/{candidate_id}/reject")
+    assert again.status_code == 409
+    missing = await client.post(f"/api/v1/missions/{mission_id}/candidates/nope/confirm")
+    assert missing.status_code == 404
+    detections = (await client.get(f"/api/v1/missions/{mission_id}/detections")).json()
+    assert detections[0]["detection_id"] == detection_id
+
+
 async def test_validation_errors(client: AsyncClient) -> None:
     both = await client.post(
         "/api/v1/missions", json={"scenario": "basic_search", "spec": None, "time_scale": 0}

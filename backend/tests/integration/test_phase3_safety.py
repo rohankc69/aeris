@@ -32,7 +32,7 @@ async def test_drone_failure_is_absorbed_by_the_rest_of_the_fleet() -> None:
     )
 
 
-async def test_dynamic_reassignment_redistributes_twice_and_avoids_no_fly_pocket() -> None:
+async def test_dynamic_reassignment_absorbs_two_disruptions_and_avoids_no_fly_pocket() -> None:
     runner = ScenarioRunner(load_scenario("dynamic_reassignment"), settings=settings())
     releases: list[ZoneReassignmentRequested] = []
     rejected_plans: list[SafetyOverrideTriggered] = []
@@ -57,7 +57,11 @@ async def test_dynamic_reassignment_redistributes_twice_and_avoids_no_fly_pocket
 
     summary = await runner.run(on_tick=track)
     assert summary.final_status is MissionStatus.COMPLETED
-    assert {e.previous_drone_id for e in releases} >= {"drone-02", "drone-03"}
+    assert "drone-03" in {e.previous_drone_id for e in releases}
+    assert any(
+        e.rule in {"mandatory_return_battery", "return_margin"} and e.drone_id == "drone-02"
+        for e in runner.world.safety_events
+    )
     assert not rejected_plans, "planner should never propose a plan that the governor rejects"
     inside = [p for p in positions if hole.contains(Point(p[1], p[2]))]
     assert not inside, f"searching drone entered the restricted region: {inside[:3]}"

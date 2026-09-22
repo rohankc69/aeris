@@ -13,11 +13,13 @@ from datetime import datetime
 
 from aeris.clock import Clock
 from aeris.config import SafetySettings
-from aeris.domain.enums import DroneStatus, LinkState, MissionStatus, ZoneStatus
+from aeris.domain.enums import DroneStatus, LinkState, MissionStatus, TriageDecision, ZoneStatus
+from aeris.domain.geo import GeoPoint
 from aeris.domain.models import (
     CandidateSurvivor,
     DecisionRecord,
     Detection,
+    DetectionObservation,
     Drone,
     DroneState,
     Mission,
@@ -29,6 +31,9 @@ from aeris.domain.models import (
 )
 from aeris.events.bus import EventBus
 from aeris.events.events import (
+    CandidateEscalated,
+    DetectionCreated,
+    DetectionUpdated,
     DomainEvent,
     DroneDisconnected,
     DroneLinkStateChanged,
@@ -282,11 +287,131 @@ class WorldStateService:
     def detection(self, detection_id: str) -> Detection | None:
         return self._detections.get(detection_id)
 
+    async def ingest_observation(
+        self, observation: DetectionObservation, *, cluster_radius_m: float
+    ) -> tuple[Detection, bool]:
+        """Attach an observation to a nearby detection or create a new one.
+
+        Returns the detection and whether it is new. A detection's position is the mean of its
+        observations; it is a candidate, never a confirmed person.
+        """
+        for existing in self._detections.values():
+            if existing.position.distance_to(observation.position) <= cluster_radius_m:
+                observations = (*existing.observations, observation)
+                updated = existing.model_copy(
+                    update={
+                        "observations": observations,
+                        "last_observed_at": observation.timestamp,
+                        "position": _mean_position(observations),
+                    }
+                )
+                self._detections[updated.detection_id] = updated
+                await self._publish(
+                    DetectionUpdated(
+                        mission_id=self.mission_id,
+                        detection_id=updated.detection_id,
+                        observation_count=len(observations),
+                        max_confidence=updated.max_confidence,
+                    )
+                )
+                return updated, False
+        detection = Detection(
+            mission_id=self.mission_id,
+            zone_id=self._zone_containing(observation.position),
+            position=observation.position,
+            first_observed_at=observation.timestamp,
+            last_observed_at=observation.timestamp,
+            observations=(observation,),
+        )
+        self._detections[detection.detection_id] = detection
+        zone_id = detection.zone_id
+        if zone_id is not None:
+            zone = self._zones[zone_id]
+            self._zones[zone_id] = zone.model_copy(
+                update={"detection_ids": (*zone.detection_ids, detection.detection_id)}
+            )
+        await self._publish(
+            DetectionCreated(
+                mission_id=self.mission_id,
+                detection_id=detection.detection_id,
+                drone_id=observation.drone_id,
+                zone_id=zone_id,
+                position=detection.position,
+                confidence=observation.confidence,
+            )
+        )
+        return detection, True
+
+    def set_detection_triage(
+        self,
+        detection_id: str,
+        triage: TriageDecision,
+        *,
+        investigating_drone_id: str | None = None,
+    ) -> Detection:
+        detection = self._detections[detection_id]
+        update: dict[str, object] = {"triage": triage}
+        if investigating_drone_id is not None or triage is TriageDecision.IGNORE:
+            update["investigating_drone_id"] = investigating_drone_id
+        self._detections[detection_id] = detection.model_copy(update=update)
+        return self._detections[detection_id]
+
     def upsert_candidate(self, candidate: CandidateSurvivor) -> None:
         self._candidates[candidate.candidate_id] = candidate
 
     def candidate(self, candidate_id: str) -> CandidateSurvivor | None:
         return self._candidates.get(candidate_id)
+
+    def candidate_for_detection(self, detection_id: str) -> CandidateSurvivor | None:
+        return next((c for c in self._candidates.values() if c.detection_id == detection_id), None)
+
+    async def escalate_candidate(self, detection_id: str) -> CandidateSurvivor:
+        """Escalate a detection for human confirmation. Idempotent per detection."""
+        existing = self.candidate_for_detection(detection_id)
+        if existing is not None:
+            return existing
+        detection = self._detections[detection_id]
+        candidate = CandidateSurvivor(
+            mission_id=self.mission_id,
+            detection_id=detection_id,
+            escalated_at=self._clock.now(),
+            position=detection.position,
+        )
+        self._candidates[candidate.candidate_id] = candidate
+        await self._publish(
+            CandidateEscalated(
+                mission_id=self.mission_id,
+                candidate_id=candidate.candidate_id,
+                detection_id=detection_id,
+                position=candidate.position,
+            )
+        )
+        return candidate
+
+    def resolve_candidate(
+        self, candidate_id: str, *, confirmed: bool, action_id: str
+    ) -> CandidateSurvivor:
+        candidate = self._candidates[candidate_id]
+        self._candidates[candidate_id] = candidate.model_copy(
+            update={
+                "confirmed": confirmed,
+                "resolved_at": self._clock.now(),
+                "resolved_by_action_id": action_id,
+            }
+        )
+        return self._candidates[candidate_id]
+
+    def _zone_containing(self, point: GeoPoint) -> str | None:
+        from shapely.geometry import Point  # noqa: PLC0415 - keep shapely out of module import path
+
+        from aeris.planning.geo_frame import LocalFrame  # noqa: PLC0415
+
+        frame = LocalFrame.for_polygon(self._mission.search_area.polygon)
+        p = Point(frame.to_local(point))
+        for zone in self._zones.values():
+            if frame.polygon_to_local(zone.polygon).covers(p):
+                return zone.zone_id
+        return None
 
     # ------------------------------------------------------------------ helpers
 
@@ -320,3 +445,12 @@ class WorldStateService:
         if age <= self._safety.link_lost_after_s:
             return LinkState.STALE
         return LinkState.LOST
+
+
+def _mean_position(observations: tuple[DetectionObservation, ...]) -> GeoPoint:
+    n = len(observations)
+    return GeoPoint(
+        latitude=sum(o.position.latitude for o in observations) / n,
+        longitude=sum(o.position.longitude for o in observations) / n,
+        altitude_m=0.0,
+    )

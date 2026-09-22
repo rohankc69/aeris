@@ -15,6 +15,7 @@ from typing import Self
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from aeris.domain.enums import DetectionSource
 from aeris.domain.geo import GeoPoint, GeoPolygon
 from aeris.domain.models import Drone, DroneCapability, Mission, SearchArea
 
@@ -28,6 +29,13 @@ class ScenarioEventType(StrEnum):
     BATTERY_DRAIN_MULTIPLIER = "battery_drain_multiplier"
     BATTERY_SET = "battery_set"
     LINK_SET = "link_set"
+    DETECTION = "detection"
+    OPERATOR_CONFIRM = "operator_confirm"
+    OPERATOR_REJECT = "operator_reject"
+
+    @property
+    def needs_drone(self) -> bool:
+        return self not in {ScenarioEventType.OPERATOR_CONFIRM, ScenarioEventType.OPERATOR_REJECT}
 
 
 class ScenarioEvent(BaseModel):
@@ -35,9 +43,24 @@ class ScenarioEvent(BaseModel):
 
     at_s: float = Field(ge=0, description="Seconds after mission start")
     type: ScenarioEventType
-    drone_id: str
-    value: float | bool
+    drone_id: str | None = None
+    value: float | bool = 0.0
+    source: DetectionSource | None = Field(default=None, description="detection events only")
+    position: GeoPoint | None = Field(
+        default=None, description="detection events only; defaults to the missing person"
+    )
+    movement: bool = False
     note: str = ""
+
+    @model_validator(mode="after")
+    def _shape(self) -> Self:
+        if self.type.needs_drone and not self.drone_id:
+            msg = f"{self.type} event needs a drone_id"
+            raise ValueError(msg)
+        if self.type is ScenarioEventType.DETECTION and self.source is None:
+            msg = "detection event needs a source"
+            raise ValueError(msg)
+        return self
 
 
 class ScenarioDrone(BaseModel):
@@ -64,6 +87,18 @@ class ScenarioDrone(BaseModel):
         return 100.0 / self.capability.nominal_endurance_s
 
 
+class MissingPerson(BaseModel):
+    """A simulated person the fake sensors can detect (**simulated** perception)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    position: GeoPoint
+    detection_range_m: float = Field(60.0, gt=0)
+    thermal_confidence: float = Field(0.55, ge=0, le=1)
+    visual_confidence: float = Field(0.35, ge=0, le=1)
+    sighting_cooldown_s: float = Field(20.0, gt=0)
+
+
 class Scenario(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -74,6 +109,7 @@ class Scenario(BaseModel):
     search_polygon: GeoPolygon
     restricted_regions: tuple[GeoPolygon, ...] = ()
     last_known_position: GeoPoint | None = None
+    missing_person: MissingPerson | None = None
     search_altitude_m: float = Field(60.0, gt=0)
     overlap_fraction: float = Field(0.2, ge=0, lt=1)
     zone_size_m: float = Field(250.0, gt=0)
@@ -89,8 +125,15 @@ class Scenario(BaseModel):
             msg = "drone ids must be unique"
             raise ValueError(msg)
         for event in self.events:
-            if event.drone_id not in ids:
+            if event.drone_id is not None and event.drone_id not in ids:
                 msg = f"event at {event.at_s}s targets unknown drone {event.drone_id}"
+                raise ValueError(msg)
+            if (
+                event.type is ScenarioEventType.DETECTION
+                and event.position is None
+                and self.missing_person is None
+            ):
+                msg = f"detection event at {event.at_s}s needs a position or a missing_person"
                 raise ValueError(msg)
         return self
 

@@ -194,8 +194,8 @@ cd backend
 uv run aeris sim list
 uv run aeris sim run --scenario basic_search             # headless, prints per-minute progress + JSON summary
 uv run aeris sim run --scenario lost_connection --quiet --output out.json
-# scenarios: basic_search, low_battery, lost_connection, drone_failure, dynamic_reassignment
-# forest_search and the detection scenarios arrive in Phase 5
+uv run aeris sim run --scenario forest_search           # the full MVP demo
+# see docs/simulation.md for the scenario schema and the bundled scenarios
 ```
 
 ### PX4 bridge (Phase 4, Docker-hosted, *planned*)
@@ -248,7 +248,7 @@ DATABASE_URL=postgresql+asyncpg://aeris:aeris@localhost:5432/aeris
 | 2 | Decision providers (Mock, RuleBased, OpenRouter-routed Jev), DecisionRecord, inspector, fallback | done |
 | 3 | SafetyGovernor extended: geofence, altitude, separation, plan validation, restricted regions; e-stop; zone priority in assignment | done |
 | 4 | ROS 2 + PX4 SITL + Gazebo, PX4FleetAdapter, 3 vehicles | next |
-| 5 | Detection simulation, complete forest-search scenario | planned |
+| 5 | Detection simulation, complete forest-search scenario | done |
 | 6 | Evaluation harness, docs, screenshots, contributor experience | planned |
 
 At the end of each phase: run tests, run lint, fix failures, update docs (including this file),

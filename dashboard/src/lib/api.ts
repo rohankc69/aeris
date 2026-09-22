@@ -35,6 +35,10 @@ export const api = {
     }),
   command: (id: string, action: "start" | "pause" | "resume" | "abort" | "estop" | "estop/clear") =>
     request<unknown>(`/api/v1/missions/${id}/${action}`, { method: "POST" }),
+  candidateCommand: (id: string, candidateId: string, action: "confirm" | "reject") =>
+    request<unknown>(`/api/v1/missions/${id}/candidates/${candidateId}/${action}`, {
+      method: "POST",
+    }),
   droneCommand: (id: string, droneId: string, action: "return" | "hold") =>
     request<unknown>(`/api/v1/missions/${id}/drones/${droneId}/${action}`, {
       method: "POST",
