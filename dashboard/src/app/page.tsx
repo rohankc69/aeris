@@ -16,6 +16,11 @@ const MissionMap = dynamic(() => import("@/components/MissionMap").then((m) => m
 export default function CommandCenter() {
   const [missionId, setMissionId] = useState<string | null>(null);
   const [selectedDrone, setSelectedDrone] = useState<string | null>(null);
+  const [focusRequest, setFocusRequest] = useState(0);
+  const showDrone = (id: string) => {
+    setSelectedDrone(id);
+    setFocusRequest((n) => n + 1);
+  };
   const [bottomTab, setBottomTab] = useState<"coverage" | "decisions">("coverage");
   const { snapshot, events, decisions, safetyEvents, connected } = useMissionStream(missionId);
   const status = snapshot?.mission.status ?? null;
@@ -37,7 +42,12 @@ export default function CommandCenter() {
         <MissionControls missionId={missionId} status={status} estop={estop} onMissionChange={setMissionId} />
       </header>
 
-      <MissionMap snapshot={snapshot} selectedDrone={selectedDrone} onSelectDrone={setSelectedDrone} />
+      <MissionMap
+        snapshot={snapshot}
+        selectedDrone={selectedDrone}
+        onSelectDrone={setSelectedDrone}
+        focusRequest={focusRequest}
+      />
 
       <aside className="panel">
         {snapshot && (
@@ -56,6 +66,7 @@ export default function CommandCenter() {
           onReturn={(id) => missionId && api.droneCommand(missionId, id, "return")}
           onHold={(id) => missionId && api.droneCommand(missionId, id, "hold")}
           onResume={(id) => missionId && api.droneCommand(missionId, id, "resume")}
+          onShow={showDrone}
           decisions={decisions}
         />
       </aside>

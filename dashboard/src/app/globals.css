@@ -350,3 +350,9 @@ button.confirm {
   left: 10px;
   z-index: 2;
 }
+
+button.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
