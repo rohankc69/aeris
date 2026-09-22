@@ -7,9 +7,10 @@ It maintains a shared view of a mission, coordinates search assignments, reacts 
 and vehicle failures, and uses bounded AI decisions while deterministic safety systems retain
 final authority.
 
-> Status: **Phase 2 complete.** Three simulated drones search a region with bounded AI decisions,
-> a deterministic Safety Governor, a full decision audit trail and a live dashboard, all without
-> ROS, PX4, a database or an AI key. See [Roadmap](#roadmap).
+> Status: **Phase 3 complete.** Three simulated drones search a region with bounded AI decisions,
+> a deterministic Safety Governor (battery, link, altitude, geofence, restricted regions,
+> separation, plan validation, emergency stop), dynamic reassignment, a full decision audit
+> trail and a live dashboard, all without ROS, PX4, a database or an AI key. See [Roadmap](#roadmap).
 
 ---
 
@@ -205,8 +206,8 @@ need rescue. See [docs/safety.md](docs/safety.md).
 | 0 | Foundation: docs, skeleton, tooling ✅ |
 | 1 | Local simulation: three fake drones search a region, REST + WebSocket, basic dashboard ✅ |
 | 2 | Decision providers (Mock, Rules, Jev via OpenRouter), DecisionRecord, decision inspector, fallback ✅ |
-| 3 | Safety Governor extended (geofence, altitude, separation, waypoints), operator overrides, dynamic reassignment ← **next** |
-| 4 | ROS 2 / PX4 SITL / Gazebo with three vehicles |
+| 3 | Safety Governor extended (geofence, altitude, separation, plan validation, restricted regions), e-stop, dynamic reassignment ✅ |
+| 4 | ROS 2 / PX4 SITL / Gazebo with three vehicles ← **next** |
 | 5 | Detection simulation, complete forest-search scenario |
 | 6 | Evaluation harness, docs, screenshots, contributor experience |
 

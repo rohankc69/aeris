@@ -167,7 +167,11 @@ never prevents safety behavior because safety behavior does not depend on Jev.
 Deterministic, testable algorithms:
 
 - **Partitioning** — `GridPartitioner` splits the search polygon into a grid of `SearchZone`s
-  clipped to the polygon. Interface allows terrain-aware or Voronoi partitioners later.
+  clipped to the polygon, subtracts restricted regions (with a clearance standoff) and splits
+  affected cells so every zone stays convex. Interface allows terrain-aware or Voronoi
+  partitioners later.
+- **Transit routing** — `planning/routing.py` detours the leg from a drone's position to its
+  first waypoint around restricted regions with a bounded corner search.
 - **Coverage paths** — `BoustrophedonPlanner` turns a zone polygon, search altitude, camera
   footprint, and overlap into a `WaypointPlan`. Supports resuming from a fraction complete so a
   `PARTIAL` zone can be handed off without re-flying searched ground.

@@ -31,21 +31,56 @@ execute(validated.proposal if validated.allowed else validated.safe_alternative)
 
 ## Rules
 
-All thresholds are named fields in `backend/aeris/config.py` (`SafetySettings`).
+All thresholds are named fields in `backend/aeris/config.py` (`SafetySettings`). Rules are
+small classes in `backend/aeris/safety/rules.py` (state rules) and
+`backend/aeris/safety/plan_rules.py` (plan rules), composed by `SafetyGovernor`.
 
-| Rule | Behavior |
+### State rules: what must a drone do now?
+
+Evaluated every tick for every drone, and against every AI or policy proposal. The first
+violated rule wins.
+
+| Rule | Fires when | Required action |
+|---|---|---|
+| `critical_battery` | battery ≤ `critical_battery_percent` | RETURN_TO_BASE |
+| `mandatory_return_battery` | battery ≤ `min_return_battery_percent` | RETURN_TO_BASE |
+| `return_margin` | battery ≤ estimated return cost + `return_battery_margin_percent` | RETURN_TO_BASE |
+| `link_lost` | link state LOST | RETURN_TO_BASE (preconfigured lost-link behaviour) |
+| `max_altitude` | reported altitude > `max_altitude_m` | RETURN_TO_BASE |
+| `mission_not_active` | mission paused/aborted while a drone is searching | HOLD |
+| `minimum_separation` | two airborne searching drones closer than `min_separation_m`, outside `separation_exempt_radius_m` of base | HOLD (the later drone id) |
+| `telemetry_missing` | no telemetry ever received | HOLD |
+
+A safety HOLD is released automatically once the rule has stayed clear for a few consecutive
+ticks (hysteresis), so a separation hold does not flap at the threshold. Landed and unavailable
+drones are not evaluated.
+
+### Plan rules: may this waypoint plan be sent?
+
+Evaluated before any plan reaches a fleet adapter. A rejected plan is never sent; the zone
+stays open and the (drone, zone) pair is not retried.
+
+| Rule | Rejects when |
 |---|---|
-| Mandatory return battery | battery at or below `min_return_battery_percent`, or below estimated return cost plus `return_battery_margin_percent` → `RETURN_TO_BASE`, regardless of proposal |
-| Critical battery | at or below `critical_battery_percent` → immediate return or land; overrides everything except an operator emergency stop |
-| Maximum altitude | any waypoint above `max_altitude_m` is rejected |
-| Geofence | any waypoint outside the mission search area buffer or inside a restricted region is rejected |
-| Minimum separation | assignments that would put two drones within `min_separation_m` at the same time are rejected or sequenced |
-| Telemetry timeout | see link states below |
-| Invalid coordinates | NaN, out-of-range, or non-finite positions reject the proposal and mark the drone unavailable |
-| Unavailable drone | proposals for drones that are returning, lost, failed, or grounded are rejected |
-| Unreachable waypoint | plans whose estimated energy exceeds available battery minus return cost are rejected |
-| Mission paused/aborted | only `HOLD`, `RETURN_TO_BASE`, and land are allowed |
-| Operator emergency stop | every drone receives the preconfigured e-stop behavior immediately; nothing else executes until cleared |
+| `invalid_coordinates` | any waypoint is non-finite |
+| `unavailable_drone` | the drone is not available for assignment (status or link) |
+| `max_altitude` | any waypoint above `max_altitude_m` |
+| `geofence` | any waypoint outside the search polygon buffered by `geofence_buffer_m` |
+| `restricted_region` | any waypoint inside, or the flight path (from the drone's current position) crossing, a restricted region |
+| `unreachable_plan` | transit + path + return energy × `plan_energy_safety_factor` exceeds battery above the return floor |
+
+Planning keeps clear of restricted regions before the governor ever sees a plan: the grid
+partitioner subtracts each region buffered by `restricted_clearance_m` and splits affected
+cells along the region's edges so every zone stays convex, and transit legs are routed around
+regions with a bounded corner detour (`aeris/planning/routing.py`). Return-to-base flies a
+direct line, as an autopilot RTL would; it is not obstacle-routed in the MVP.
+
+### Operator emergency stop
+
+`POST /missions/{id}/estop` holds every drone immediately, pauses the mission, and freezes the
+control loop: nothing is assigned, decided, or sent until `POST /missions/{id}/estop/clear`.
+Clearing does not resume the mission; the operator resumes explicitly. Both actions are
+recorded as `OperatorAction`s.
 
 ## Link states and lost-link behavior
 
@@ -54,9 +89,9 @@ Link state is derived from telemetry age, never assumed:
 | Telemetry age | State | Effect |
 |---|---|---|
 | ≤ `link_degraded_after_s` | `CONNECTED` | normal |
-| ≤ `link_stale_after_s` | `DEGRADED` | human-review probability rises; no new assignments |
-| ≤ `link_lost_after_s` | `STALE` | drone treated as unavailable; its zone becomes `PARTIAL` for reassignment |
-| > `link_lost_after_s` | `LOST` | preconfigured lost-link behavior (MVP default: return to base); `DroneDisconnected` event |
+| ≤ `link_stale_after_s` | `DEGRADED` | keeps its current zone; receives no new assignments or AI decisions |
+| ≤ `link_lost_after_s` | `STALE` | its zone is released (`PARTIAL`) for reassignment |
+| > `link_lost_after_s` | `LOST` | `link_lost` rule: return-to-base is commanded and audited; if the command cannot be delivered the drone is marked UNAVAILABLE and its own autopilot failsafe governs it |
 
 Lost-link behavior is deterministic and configured, never decided by Jev. In the real-vehicle
 case PX4's own failsafe governs the aircraft; AERIS's job is to stop relying on that drone and
