@@ -1,16 +1,48 @@
 # AERIS Docker Compose.
 #
-# Nothing here is required for local development. The backend, dashboard, tests and every
-# simulation scenario run natively with `uv` and `pnpm` (fake fleet, mock AI, in-memory store).
+# Nothing here is required for local development: the backend, dashboard, tests and every
+# scenario run natively with `uv` and `pnpm` (fake fleet, mock AI, in-memory store).
 #
-#   docker compose up postgres            optional durable store (PostgreSQL + PostGIS)
-#   docker compose --profile px4 up       Phase 4 (planned): ROS 2 Jazzy + PX4 SITL + Gazebo, headless
+#   docker compose up                      backend :8000 + dashboard :3000 (fake fleet, mock AI)
+#   docker compose up -d postgres          optional durable store (PostgreSQL + PostGIS)
+#   docker compose --profile px4 up        headless Gazebo + 3 PX4 SITL + XRCE agent + ROS 2 bridge,
+#                                          backend switched to AERIS_FLEET_PROVIDER=px4
 #
-# Backend and dashboard containers will be added once their Dockerfiles exist.
+# The px4 profile builds PX4 from source on first use (10-25 min). On an 8 GB machine give the
+# Docker VM at least 5 GB and start with PX4_VEHICLES=1 or 2 (see docs/px4_bridge.md).
 
 services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    environment:
+      AERIS_ENV: ${AERIS_ENV:-development}
+      AERIS_FLEET_PROVIDER: ${AERIS_FLEET_PROVIDER:-fake}
+      AERIS_DECISION_PROVIDER: ${AERIS_DECISION_PROVIDER:-mock}
+      AERIS_DECISION_FALLBACK: ${AERIS_DECISION_FALLBACK:-rules}
+      AERIS_PX4_BRIDGE_URL: ws://bridge:8765
+      AERIS_CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      JEV_MODEL: ${JEV_MODEL:-typesafe/jev-latest}
+      DATABASE_URL: ${DATABASE_URL:-}
+    ports:
+      - "8000:8000"
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/dashboard/Dockerfile
+      args:
+        NEXT_PUBLIC_AERIS_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
   postgres:
     image: postgis/postgis:16-3.4
+    profiles: ["postgres"]
     environment:
       POSTGRES_USER: aeris
       POSTGRES_PASSWORD: aeris
@@ -24,6 +56,32 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  px4-sim:
+    build:
+      context: docker/px4-sim
+    profiles: ["px4"]
+    environment:
+      PX4_VEHICLES: ${PX4_VEHICLES:-3}
+      PX4_GZ_WORLD: aeris_forest
+    # DDS discovery between px4-sim and bridge uses multicast on the compose network.
+    ulimits:
+      nofile: 65536
+    shm_size: "1g"
+
+  bridge:
+    build:
+      context: .
+      dockerfile: docker/bridge/Dockerfile
+    profiles: ["px4"]
+    environment:
+      ROS_DOMAIN_ID: "0"
+      RMW_IMPLEMENTATION: rmw_fastrtps_cpp
+    ports:
+      - "8765:8765"
+    depends_on:
+      - px4-sim
+    shm_size: "1g"
 
 volumes:
   aeris_pg:
