@@ -1,0 +1,41 @@
+# The forest_search demo over Assiniboine Forest in Winnipeg, Manitoba. Same timeline; see
+# forest_search.yaml for the event-by-event description. Run the PX4 profile here with
+#   PX4_HOME_LAT=49.8600 PX4_HOME_LON=-97.2600 docker compose --profile px4 up
+name: winnipeg_forest
+description: The forest_search demo relocated to Assiniboine Forest, Winnipeg (1 km x 1 km).
+seed: 42
+base_position: { latitude: 49.8600, longitude: -97.2600, altitude_m: 0 }
+search_polygon:
+  vertices:
+    - { latitude: 49.8615, longitude: -97.2680 }
+    - { latitude: 49.8615, longitude: -97.2541 }
+    - { latitude: 49.8705, longitude: -97.2541 }
+    - { latitude: 49.8705, longitude: -97.2680 }
+last_known_position: { latitude: 49.8690, longitude: -97.2560 }
+missing_person:
+  position: { latitude: 49.8696, longitude: -97.2552 }
+  detection_range_m: 70
+  thermal_confidence: 0.40
+  visual_confidence: 0.20
+  sighting_cooldown_s: 30
+search_altitude_m: 60
+overlap_fraction: 0.2
+zone_size_m: 250
+tick_s: 1.0
+max_duration_s: 3600
+drones:
+  - drone_id: drone-01
+    name: Drone 01
+    capability: { camera: true, thermal: true, cruise_speed_mps: 12, nominal_endurance_s: 1800, camera_footprint_width_m: 45 }
+  - drone_id: drone-02
+    name: Drone 02
+    capability: { camera: true, thermal: false, cruise_speed_mps: 12, nominal_endurance_s: 1800, camera_footprint_width_m: 45 }
+  - drone_id: drone-03
+    name: Drone 03
+    capability: { camera: true, thermal: true, cruise_speed_mps: 12, nominal_endurance_s: 1800, camera_footprint_width_m: 45 }
+events:
+  - { at_s: 120, type: battery_drain_multiplier, drone_id: drone-02, value: 5.0, note: "T+2 battery degrading" }
+  - { at_s: 240, type: detection, drone_id: drone-03, source: THERMAL, value: 0.42, note: "T+4 weak thermal candidate" }
+  - { at_s: 480, type: detection, drone_id: drone-03, source: THERMAL, value: 0.86, movement: true, note: "T+8 stronger evidence" }
+  - { at_s: 482, type: detection, drone_id: drone-03, source: VISUAL, value: 0.78, note: "T+8 visual agrees" }
+  - { at_s: 540, type: operator_confirm, note: "T+9 operator confirms survivor" }

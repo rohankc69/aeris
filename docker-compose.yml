@@ -67,6 +67,11 @@ services:
     environment:
       PX4_VEHICLES: ${PX4_VEHICLES:-3}
       PX4_GZ_WORLD: aeris_forest
+      # Home position; must match the scenario's base_position (forest_search: 46.97, 8.0;
+      # winnipeg_forest: 49.86, -97.26).
+      PX4_HOME_LAT: ${PX4_HOME_LAT:-46.9700}
+      PX4_HOME_LON: ${PX4_HOME_LON:-8.0000}
+      PX4_HOME_ALT: ${PX4_HOME_ALT:-500}
     # Mounted so the launch script and world can change without rebuilding the 9 GB image.
     volumes:
       - ./docker/px4-sim/run_sim.sh:/opt/run_sim.sh:ro
