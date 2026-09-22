@@ -38,12 +38,14 @@ read as health.
 
 ## Running the headless stack
 
-Requires Docker (Colima, OrbStack or Docker Desktop). First build compiles PX4 from source.
+Requires Docker (Colima, OrbStack or Docker Desktop). Images are prebuilt on GitHub Actions
+(`.github/workflows/px4-images.yml`) and published to GHCR for amd64 and arm64.
 
 ```bash
-docker compose --profile px4 build          # once; 10-25 minutes
-docker compose --profile px4 up             # gazebo server + 3 PX4 SITL + XRCE agent + bridge
+docker compose --profile px4 pull           # prebuilt images; no PX4 compile
+PX4_VEHICLES=2 docker compose --profile px4 up   # headless gazebo + PX4 SITL + XRCE agent + bridge
 # host port 8765 taken? AERIS_BRIDGE_PORT=8766 docker compose --profile px4 up
+# build locally instead (30-40 min): docker compose --profile px4 build
 
 # in another terminal, against the same bridge
 cd backend

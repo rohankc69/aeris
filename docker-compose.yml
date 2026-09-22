@@ -5,11 +5,11 @@
 #
 #   docker compose up                      backend :8000 + dashboard :3000 (fake fleet, mock AI)
 #   docker compose up -d postgres          optional durable store (PostgreSQL + PostGIS)
-#   docker compose --profile px4 up        headless Gazebo + 3 PX4 SITL + XRCE agent + ROS 2 bridge,
-#                                          backend switched to AERIS_FLEET_PROVIDER=px4
+#   docker compose --profile px4 pull      fetch the prebuilt PX4 SITL and bridge images from GHCR
+#   docker compose --profile px4 up        headless Gazebo + PX4 SITL vehicles + XRCE agent + ROS 2 bridge
 #
-# The px4 profile builds PX4 from source on first use (10-25 min). On an 8 GB machine give the
-# Docker VM at least 5 GB and start with PX4_VEHICLES=1 or 2 (see docs/px4_bridge.md).
+# Give the Docker VM at least 4 CPUs and 5 GB; two vehicles are verified there, three is untested.
+# Start the backend with AERIS_FLEET_PROVIDER=px4 (see docs/px4_bridge.md).
 
 services:
   backend:
@@ -58,6 +58,9 @@ services:
       retries: 10
 
   px4-sim:
+    # Pulled from GHCR by default (built by .github/workflows/px4-images.yml). To build locally
+    # instead: docker compose --profile px4 build px4-sim   (compiles PX4; 30-40 minutes).
+    image: ${AERIS_PX4_SIM_IMAGE:-ghcr.io/rohankc69/aeris-px4-sim:latest}
     build:
       context: docker/px4-sim
     profiles: ["px4"]
@@ -76,6 +79,7 @@ services:
     shm_size: "1g"
 
   bridge:
+    image: ${AERIS_BRIDGE_IMAGE:-ghcr.io/rohankc69/aeris-bridge:latest}
     build:
       context: .
       dockerfile: docker/bridge/Dockerfile
