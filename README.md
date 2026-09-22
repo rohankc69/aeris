@@ -7,9 +7,9 @@ It maintains a shared view of a mission, coordinates search assignments, reacts 
 and vehicle failures, and uses bounded AI decisions while deterministic safety systems retain
 final authority.
 
-> Status: **Phase 1 complete.** Three simulated drones search a region end to end with a live
-> dashboard, no ROS, PX4, database or AI key required. Phase 2 (bounded AI decisions) is next.
-> See [Roadmap](#roadmap).
+> Status: **Phase 2 complete.** Three simulated drones search a region with bounded AI decisions,
+> a deterministic Safety Governor, a full decision audit trail and a live dashboard, all without
+> ROS, PX4, a database or an AI key. See [Roadmap](#roadmap).
 
 ---
 
@@ -167,7 +167,7 @@ JEV_MODEL=typesafe/jev-latest
 
 A direct TypeSafe provider can sit behind the same `DecisionProvider` interface. The provider
 and model id appear in every `DecisionRecord` and in telemetry. Never commit `.env`. See
-[docs/jev.md](docs/jev.md) once Phase 2 lands.
+[docs/jev.md](docs/jev.md).
 
 ## Offline mode
 
@@ -204,8 +204,8 @@ need rescue. See [docs/safety.md](docs/safety.md).
 |---|---|
 | 0 | Foundation: docs, skeleton, tooling ✅ |
 | 1 | Local simulation: three fake drones search a region, REST + WebSocket, basic dashboard ✅ |
-| 2 | Decision providers (Mock, Rules, Jev via OpenRouter), DecisionRecord, decision inspector, fallback ← **next** |
-| 3 | Safety Governor, operator overrides, dynamic reassignment |
+| 2 | Decision providers (Mock, Rules, Jev via OpenRouter), DecisionRecord, decision inspector, fallback ✅ |
+| 3 | Safety Governor extended (geofence, altitude, separation, waypoints), operator overrides, dynamic reassignment ← **next** |
 | 4 | ROS 2 / PX4 SITL / Gazebo with three vehicles |
 | 5 | Detection simulation, complete forest-search scenario |
 | 6 | Evaluation harness, docs, screenshots, contributor experience |

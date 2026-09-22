@@ -140,7 +140,7 @@ Three implementations share this interface:
 |---|---|---|
 | `MockDecisionProvider` | deterministic, scriptable answers; optional seeded randomness | tests, CI, offline demos |
 | `RuleBasedDecisionProvider` | hand-written heuristics | fallback, baseline for evaluation |
-| `JevDecisionProvider` | calls TypeSafe AI's Jev System One via `TYPESAFE_API_KEY` / `JEV_MODEL` | production decisions |
+| `OpenRouterJevProvider` | reaches TypeSafe AI's Jev through OpenRouter (the gateway, not the decision-maker) via `OPENROUTER_API_KEY` / `JEV_MODEL` | production decisions |
 
 On top of the primitives sit four **decision modules**, each a narrow typed question with a
 small input model, a bounded output, and an accompanying deterministic policy opinion:
@@ -153,7 +153,8 @@ small input model, a bounded output, and an accompanying deterministic policy op
 | `human_review_gate` | probability | P(human review needed) | thresholded by config; conflicts, poor link, sensor disagreement raise it |
 
 Jev receives a compact structured JSON state, never free text about the whole fleet, and never
-raw telemetry streams. See `docs/jev.md` for exact payloads.
+raw telemetry streams. The hosted path is `World State → DecisionProvider → OpenRouter → Jev`;
+mission code never knows which provider answered. See `docs/jev.md` for exact payloads.
 
 **Resilience.** `ResilientDecisionProvider` wraps the primary provider with a per-call
 timeout, a small bounded retry, a circuit breaker, and a fallback provider (default:

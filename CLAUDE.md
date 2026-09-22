@@ -244,8 +244,8 @@ DATABASE_URL=postgresql+asyncpg://aeris:aeris@localhost:5432/aeris
 |---|---|---|
 | 0 | CLAUDE.md, README, architecture doc, skeleton, dev environment | done |
 | 1 | Local simulation without PX4: domain, WorldState, FakeFleetAdapter, grid, assignment, events, REST API, basic dashboard | done |
-| 2 | Decision providers (Mock, RuleBased, OpenRouter-routed Jev), DecisionRecord, inspector, fallback | next |
-| 3 | SafetyGovernor, battery/timeout/geofence rules, operator overrides, dynamic reassignment | planned |
+| 2 | Decision providers (Mock, RuleBased, OpenRouter-routed Jev), DecisionRecord, inspector, fallback | done |
+| 3 | SafetyGovernor extended: geofence, altitude, separation, waypoint validation; operator overrides; dynamic reassignment | next |
 | 4 | ROS 2 + PX4 SITL + Gazebo, PX4FleetAdapter, 3 vehicles | planned |
 | 5 | Detection simulation, complete forest-search scenario | planned |
 | 6 | Evaluation harness, docs, screenshots, contributor experience | planned |
