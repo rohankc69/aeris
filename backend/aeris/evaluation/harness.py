@@ -59,8 +59,8 @@ class EvalResult(BaseModel):
         }
 
 
-def _settings_for(provider: str) -> Settings:
-    base = load_settings()
+def _settings_for(provider: str, base: Settings | None = None) -> Settings:
+    base = base or load_settings()
     kind = DecisionProviderKind(provider)
     overrides: dict[str, object] = {"decision_provider": kind}
     if kind.is_hosted and not base.openrouter_api_key:
@@ -76,11 +76,12 @@ async def run_evaluation(
     seed: int | None = None,
     output_dir: Path | None = None,
     decision_provider: DecisionProvider | None = None,
+    base_settings: Settings | None = None,
 ) -> tuple[EvalResult, Path | None]:
     spec = scenario if isinstance(scenario, Scenario) else load_scenario(scenario)
     if seed is not None:
         spec = spec.model_copy(update={"seed": seed})
-    settings = _settings_for(provider)
+    settings = _settings_for(provider, base_settings)
     runner = ScenarioRunner(spec, settings=settings, decision_provider=decision_provider)
     summary = await runner.run()
     model = next((r.model for r in runner.world.decisions if r.model), None)

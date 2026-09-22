@@ -8,6 +8,7 @@ interface Props {
   onSelect: (id: string) => void;
   onReturn: (id: string) => void;
   onHold: (id: string) => void;
+  onResume: (id: string) => void;
   decisions: DecisionRecord[];
 }
 
@@ -24,7 +25,7 @@ function flightTime(view: DroneView, startedAt: string | null): string {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 }
 
-export function FleetPanel({ snapshot, selectedDrone, onSelect, onReturn, onHold, decisions }: Props) {
+export function FleetPanel({ snapshot, selectedDrone, onSelect, onReturn, onHold, onResume, decisions }: Props) {
   if (!snapshot) return <p className="small">No mission loaded.</p>;
   return (
     <>
@@ -75,6 +76,9 @@ export function FleetPanel({ snapshot, selectedDrone, onSelect, onReturn, onHold
                 <dd style={{ display: "flex", gap: 6, marginTop: 4 }}>
                   <button onClick={(e) => { e.stopPropagation(); onReturn(view.drone.drone_id); }}>Return</button>
                   <button onClick={(e) => { e.stopPropagation(); onHold(view.drone.drone_id); }}>Hold</button>
+                  {s.status === "HOLDING" && (
+                    <button onClick={(e) => { e.stopPropagation(); onResume(view.drone.drone_id); }}>Resume</button>
+                  )}
                 </dd>
               </dl>
             )}

@@ -1,5 +1,6 @@
 import pytest
 
+from aeris.config import load_settings
 from aeris.decisions import MockDecisionProvider
 from aeris.evaluation import compare_results, load_result, replay_records, run_evaluation
 from aeris.simulation import load_scenario
@@ -47,5 +48,10 @@ async def test_replay_recorded_inputs_through_another_provider() -> None:
 
 
 async def test_hosted_provider_requires_credentials() -> None:
+    # independent of any developer .env: no key in this Settings object
     with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
-        await run_evaluation(load_scenario("basic_search"), provider="openrouter")
+        await run_evaluation(
+            load_scenario("basic_search"),
+            provider="openrouter",
+            base_settings=load_settings(_env_file=None),
+        )

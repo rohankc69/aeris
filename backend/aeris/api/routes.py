@@ -15,7 +15,7 @@ from fastapi import (
 )
 from fastapi.responses import PlainTextResponse
 
-from aeris.api.runtime import MissionRegistry, MissionRuntime
+from aeris.api.runtime import FleetBusyError, MissionRegistry, MissionRuntime
 from aeris.api.schemas import CommandResponse, CreateMissionRequest, MissionSummary
 from aeris.config import Settings
 from aeris.simulation.scenario import list_scenarios, load_scenario
@@ -95,7 +95,10 @@ async def create_mission(body: CreateMissionRequest, registry: Registry) -> Miss
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, f"scenario {body.scenario} not found"
             ) from exc
-    runtime = await registry.create(spec, time_scale=body.time_scale)
+    try:
+        runtime = await registry.create(spec, time_scale=body.time_scale)
+    except FleetBusyError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if body.autostart:
         await registry.start(runtime)
     return _summary(runtime)
@@ -316,6 +319,17 @@ async def return_drone(mission_id: str, drone_id: str, registry: Registry) -> Co
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"drone {drone_id} not found")
     await runtime.runner.manager.return_drone(drone_id)
     return _command_response(runtime, f"{drone_id} returning")
+
+
+@router.post("/missions/{mission_id}/drones/{drone_id}/resume")
+async def resume_drone(mission_id: str, drone_id: str, registry: Registry) -> CommandResponse:
+    """Release an operator or safety hold: re-fly the zone if one is assigned, else make the
+    drone available for assignment."""
+    runtime = _runtime_or_404(registry, mission_id)
+    if runtime.runner.world.drone_state(drone_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"drone {drone_id} not found")
+    await runtime.runner.manager.resume_drone(drone_id)
+    return _command_response(runtime, f"{drone_id} resumed")
 
 
 @router.post("/missions/{mission_id}/drones/{drone_id}/hold")
