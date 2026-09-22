@@ -39,11 +39,12 @@ From `backend/`:
 | format | `uv run ruff format .` |
 | lint | `uv run ruff check . --fix` |
 | type-check | `uv run mypy aeris` |
-| dev server | `uv run uvicorn aeris.api.app:create_app --factory --reload` (Phase 1) |
-| simulation | `uv run aeris sim run --scenario forest_search` (Phase 1) |
+| dev server | `uv run uvicorn aeris.api.app:create_app --factory --reload` |
+| simulation | `uv run aeris sim run --scenario basic_search` |
 | evaluation | `uv run aeris eval --scenario low_battery --provider rules` (Phase 6) |
 
-From `dashboard/` (Phase 1): `pnpm install`, `pnpm dev`, `pnpm test`, `pnpm lint`.
+From `dashboard/`: `pnpm install`, `pnpm dev`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
+Set `NEXT_PUBLIC_AERIS_API_URL` if the backend is not on `http://localhost:8000`.
 
 ## Configuration
 
