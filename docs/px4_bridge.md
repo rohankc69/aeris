@@ -43,6 +43,7 @@ Requires Docker (Colima, OrbStack or Docker Desktop). First build compiles PX4 f
 ```bash
 docker compose --profile px4 build          # once; 10-25 minutes
 docker compose --profile px4 up             # gazebo server + 3 PX4 SITL + XRCE agent + bridge
+# host port 8765 taken? AERIS_BRIDGE_PORT=8766 docker compose --profile px4 up
 
 # in another terminal, against the same bridge
 cd backend
@@ -66,7 +67,7 @@ regions and fleet roster are used. Home position for the SITL vehicles is set in
 ## Perception hook
 
 There is no on-board detector in the MVP. Publish a JSON `std_msgs/String` on
-`/aeris/<drone-id>/observation` (`{"source": "THERMAL", "confidence": 0.7, "latitude": ...,
+`/aeris/drone_01/observation` (hyphens in the id become underscores) (`{"source": "THERMAL", "confidence": 0.7, "latitude": ...,
 "longitude": ...}`) and the bridge forwards it as an observation. A future perception node or
 a Gazebo-side simulated sensor plugs in there without touching AERIS.
 

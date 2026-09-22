@@ -5,7 +5,8 @@ Responsibilities (and nothing more):
   AERIS waypoint plans -> PX4 offboard setpoints
   AERIS RTL / hold     -> PX4 vehicle commands
   PX4 acks             -> AERIS command results
-  perception hits      -> AERIS observation messages (from /aeris/<drone>/observation)
+  perception hits      -> AERIS observation messages (from /aeris/<drone_id>/observation,
+                          hyphens in the id replaced by underscores)
 
 Vehicles are mapped explicitly through the ``vehicles`` parameter ("drone-01:1" = AERIS
 drone-01 <-> PX4 instance 1, topics under /px4_1, MAV_SYS_ID 2). Nothing is hardcoded to one
@@ -26,6 +27,10 @@ from std_msgs.msg import String
 
 from aeris_px4_bridge.protocol import ack, hello
 from aeris_px4_bridge.vehicle import Vehicle, Waypoint
+
+
+def topic_safe(drone_id: str) -> str:
+    return "".join(c if c.isalnum() or c == "_" else "_" for c in drone_id)
 
 
 class BridgeNode(Node):
@@ -57,10 +62,13 @@ class BridgeNode(Node):
         self._thermal = set(self.get_parameter("thermal_vehicles").value)
         self._outbox: asyncio.Queue[str] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._clients: set[object] = set()
+        self._ws_clients: set[object] = set()  # not _clients: rclpy.Node uses that name
 
         for drone_id in self.vehicles:
-            self.create_subscription(String, f"/aeris/{drone_id}/observation", self._make_observation_cb(drone_id), 10)
+            # ROS topic names allow only [A-Za-z0-9_]; AERIS ids like "drone-01" become "drone_01".
+            self.create_subscription(
+                String, f"/aeris/{topic_safe(drone_id)}/observation", self._make_observation_cb(drone_id), 10
+            )
 
         control_period = 1.0 / float(self.get_parameter("control_hz").value)
         telemetry_period = 1.0 / float(self.get_parameter("telemetry_hz").value)
@@ -104,8 +112,10 @@ class BridgeNode(Node):
     def _serve(self, host: str, port: int) -> None:
         import websockets  # noqa: PLC0415 - imported in the server thread only
 
-        async def handler(conn) -> None:  # noqa: ANN001
-            self._clients.add(conn)
+        async def handler(conn, _path=None) -> None:  # noqa: ANN001
+            # websockets < 11 (Debian/Ubuntu apt package) passes (connection, path); newer
+            # versions pass only the connection. Accept both.
+            self._ws_clients.add(conn)
             try:
                 await conn.send(json.dumps(hello({d: v.instance for d, v in self.vehicles.items()})))
                 async for raw in conn:
@@ -113,7 +123,7 @@ class BridgeNode(Node):
                     if reply is not None:
                         await conn.send(json.dumps(reply))
             finally:
-                self._clients.discard(conn)
+                self._ws_clients.discard(conn)
 
         async def main() -> None:
             self._loop = asyncio.get_running_loop()
@@ -121,11 +131,11 @@ class BridgeNode(Node):
             async with websockets.serve(handler, host, port):
                 while True:
                     message = await self._outbox.get()
-                    for conn in list(self._clients):
+                    for conn in list(self._ws_clients):
                         try:
                             await conn.send(message)
                         except Exception:  # noqa: BLE001 - a dropped client must not stop others
-                            self._clients.discard(conn)
+                            self._ws_clients.discard(conn)
 
         asyncio.run(main())
 
