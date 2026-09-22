@@ -34,7 +34,14 @@ MicroXRCEAgent udp4 -p 8888 >/tmp/xrce.log 2>&1 &
 # Start the headless Gazebo server ourselves and wait until the world is being served, so every
 # PX4 instance (including the first) spawns into a running world. Letting instance 1 start the
 # server races its own model spawn against sensor start-up and leaves it without IMU data.
-echo "[sim] starting headless Gazebo world ${WORLD}"
+# Move the world origin to the PX4 home position so Gazebo and PX4 agree on where "here" is.
+mkdir -p /tmp/worlds
+sed -e "s|<latitude_deg>[^<]*</latitude_deg>|<latitude_deg>${PX4_HOME_LAT}</latitude_deg>|" \
+    -e "s|<longitude_deg>[^<]*</longitude_deg>|<longitude_deg>${PX4_HOME_LON}</longitude_deg>|" \
+    -e "s|<elevation>[^<]*</elevation>|<elevation>${PX4_HOME_ALT}</elevation>|" \
+    "${PX4_GZ_WORLDS}/${WORLD}.sdf" > "/tmp/worlds/${WORLD}.sdf"
+export PX4_GZ_WORLDS=/tmp/worlds
+echo "[sim] starting headless Gazebo world ${WORLD} at ${PX4_HOME_LAT}, ${PX4_HOME_LON}"
 gz sim -s -r --verbose=1 "${PX4_GZ_WORLDS}/${WORLD}.sdf" >/tmp/gz.log 2>&1 &
 for _ in $(seq 1 30); do
   if gz service -i --service "/world/${WORLD}/scene/info" >/dev/null 2>&1; then

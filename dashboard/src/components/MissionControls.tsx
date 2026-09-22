@@ -20,8 +20,30 @@ export function MissionControls({ missionId, status, estop, onMissionChange }: P
 
   useEffect(() => {
     api.scenarios().then(setScenarios).catch((e) => setError(String(e)));
-    api.missions().then(setMissions).catch(() => undefined);
-  }, [missionId]);
+  }, []);
+
+  // Keep the mission list fresh and, when nothing is selected, jump to the newest live mission.
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () =>
+      api
+        .missions()
+        .then((list) => {
+          if (cancelled) return;
+          setMissions(list);
+          if (!missionId) {
+            const live = [...list].reverse().find((m) => !["COMPLETED", "ABORTED", "PERSON_LOCATED"].includes(m.status));
+            if (live) onMissionChange(live.mission_id);
+          }
+        })
+        .catch(() => undefined);
+    refresh();
+    const timer = setInterval(refresh, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [missionId, onMissionChange]);
 
   const run = async (fn: () => Promise<unknown>) => {
     try {
