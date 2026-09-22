@@ -9,9 +9,13 @@ delimiter, e.g. ``AERIS_SAFETY__MIN_RETURN_BATTERY_PERCENT=25``.
 from __future__ import annotations
 
 from enum import StrEnum
+from pathlib import Path
 
 from pydantic import BaseModel, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The repo-root .env is read first; a .env in the current directory overrides it.
+_REPO_ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
 
 
 class Environment(StrEnum):
@@ -116,7 +120,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="AERIS_",
-        env_file=".env",
+        env_file=(str(_REPO_ROOT_ENV), ".env"),
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
         extra="ignore",
