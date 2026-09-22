@@ -198,12 +198,14 @@ uv run aeris sim run --scenario forest_search           # the full MVP demo
 # see docs/simulation.md for the scenario schema and the bundled scenarios
 ```
 
-### PX4 bridge (Phase 4, Docker-hosted, *planned*)
+### PX4 bridge (Docker-hosted)
 
 ```bash
-docker compose --profile px4 up      # ROS 2 Jazzy + PX4 SITL + Gazebo + 3 vehicles
-# then: AERIS_FLEET_PROVIDER=px4 uv run uvicorn ...
+docker compose --profile px4 build   # once; compiles PX4 v1.15 SITL (10-25 min)
+docker compose --profile px4 up      # headless Gazebo + 3 PX4 SITL + XRCE agent + ROS 2 bridge
+AERIS_FLEET_PROVIDER=px4 AERIS_PX4_BRIDGE_URL=ws://localhost:8765 uv run uvicorn aeris.api.app:create_app --factory
 ```
+See `docs/px4_bridge.md`. The ROS 2 package is `ros_ws/src/aeris_px4_bridge`.
 
 ### Evaluation (Phase 6, *planned*)
 
@@ -220,8 +222,9 @@ Docker is never required for local development. Everything through the full MVP 
 natively with `uv` and `pnpm`.
 
 ```bash
-docker compose up -d postgres        # optional durable store; omit DATABASE_URL to stay in-memory
-docker compose --profile px4 up      # Phase 4 (planned): headless ROS 2 / PX4 SITL / Gazebo
+docker compose up                    # backend + dashboard containers (fake fleet, mock AI)
+docker compose --profile postgres up -d postgres   # optional durable store
+docker compose --profile px4 up      # headless ROS 2 / PX4 SITL / Gazebo
 ```
 
 ## Configuration
@@ -247,7 +250,7 @@ DATABASE_URL=postgresql+asyncpg://aeris:aeris@localhost:5432/aeris
 | 1 | Local simulation without PX4: domain, WorldState, FakeFleetAdapter, grid, assignment, events, REST API, basic dashboard | done |
 | 2 | Decision providers (Mock, RuleBased, OpenRouter-routed Jev), DecisionRecord, inspector, fallback | done |
 | 3 | SafetyGovernor extended: geofence, altitude, separation, plan validation, restricted regions; e-stop; zone priority in assignment | done |
-| 4 | ROS 2 + PX4 SITL + Gazebo, PX4FleetAdapter, 3 vehicles | next |
+| 4 | ROS 2 + PX4 SITL + Gazebo, PX4FleetAdapter, 3 vehicles | code complete; awaiting first Docker run |
 | 5 | Detection simulation, complete forest-search scenario | done |
 | 6 | Evaluation harness, docs, screenshots, contributor experience | planned |
 

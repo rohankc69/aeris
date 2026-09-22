@@ -27,6 +27,7 @@ class MissionSummary(BaseModel):
     name: str
     status: MissionStatus
     scenario: str
+    fleet: str = "fake"
     time_scale: float
     running: bool
     elapsed_s: float

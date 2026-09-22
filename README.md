@@ -180,8 +180,10 @@ or errors. CI never calls Jev.
 
 Docker is not needed for local development. It provides:
 
-- `docker compose up postgres` for an optional durable PostgreSQL/PostGIS store
-- `docker compose --profile px4 up` for headless ROS 2 Jazzy + PX4 SITL + Gazebo (Phase 4)
+- `docker compose up` for containerised backend and dashboard (fake fleet, mock AI)
+- `docker compose --profile postgres up -d postgres` for an optional durable PostgreSQL/PostGIS store
+- `docker compose --profile px4 up` for headless ROS 2 Jazzy + PX4 SITL + Gazebo with three
+  vehicles and the `aeris_px4_bridge` node; see [docs/px4_bridge.md](docs/px4_bridge.md)
 
 ## Safety philosophy
 

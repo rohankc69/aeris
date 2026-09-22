@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>aeris_px4_bridge</name>
+  <version>0.0.1</version>
+  <description>Translates PX4 uORB topics (via uXRCE-DDS) to the AERIS JSON WebSocket protocol and back. The only ROS 2 code in AERIS.</description>
+  <maintainer email="kcrohanraj@gmail.com">AERIS contributors</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>px4_msgs</depend>
+  <depend>std_msgs</depend>
+  <exec_depend>python3-websockets</exec_depend>
+
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

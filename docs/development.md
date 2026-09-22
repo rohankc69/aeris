@@ -70,10 +70,11 @@ export DATABASE_URL=postgresql+asyncpg://aeris:aeris@localhost:5432/aeris
 
 Without `DATABASE_URL`, AERIS uses an in-memory repository.
 
-## Optional: PX4 / Gazebo (Phase 4, planned)
+## Optional: PX4 / Gazebo
 
-Runs headless in Docker: `docker compose --profile px4 up`. Gazebo's server runs without a GUI
-and PX4 SITL instances communicate with the `aeris_px4_bridge` ROS 2 node over uXRCE-DDS.
+Runs headless in Docker: `docker compose --profile px4 build && docker compose --profile px4 up`.
+Gazebo's server runs without a GUI and PX4 SITL instances talk to the `aeris_px4_bridge` ROS 2
+node over uXRCE-DDS. Full details in `docs/px4_bridge.md`.
 
 Resource note for laptops: three PX4 SITL instances plus a headless Gazebo world plus ROS 2
 comfortably need 4 to 6 GB of memory inside the Docker VM. On an 8 GB machine, allocate at

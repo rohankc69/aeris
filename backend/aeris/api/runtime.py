@@ -11,11 +11,15 @@ import contextlib
 import logging
 from dataclasses import dataclass, field
 
-from aeris.config import Settings
+from aeris.config import FleetProvider, Settings
 from aeris.events.events import DomainEvent
+from aeris.fleet.px4.adapter import PX4FleetAdapter
+from aeris.mission.live import LiveMissionRunner
 from aeris.simulation.runner import ScenarioRunner
 from aeris.simulation.scenario import Scenario
 from aeris.world.snapshot import WorldSnapshot
+
+Runner = ScenarioRunner | LiveMissionRunner
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +28,9 @@ SUBSCRIBER_QUEUE_SIZE = 256
 
 @dataclass
 class MissionRuntime:
-    runner: ScenarioRunner
+    runner: Runner
     time_scale: float
+    fleet_kind: str = "fake"
     task: asyncio.Task[None] | None = None
     subscribers: set[asyncio.Queue[dict[str, object]]] = field(default_factory=set)
 
@@ -61,6 +66,7 @@ class MissionRegistry:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._missions: dict[str, MissionRuntime] = {}
+        self._adapters: list[PX4FleetAdapter] = []
 
     def list(self) -> list[MissionRuntime]:
         return list(self._missions.values())
@@ -69,8 +75,19 @@ class MissionRegistry:
         return self._missions.get(mission_id)
 
     async def create(self, scenario: Scenario, *, time_scale: float) -> MissionRuntime:
-        runner = ScenarioRunner(scenario, settings=self._settings)
-        runtime = MissionRuntime(runner=runner, time_scale=time_scale)
+        runner: Runner
+        if self._settings.fleet_provider is FleetProvider.PX4:
+            adapter = PX4FleetAdapter(
+                bridge_url=self._settings.px4_bridge_url,
+                command_timeout_s=self._settings.px4_command_timeout_s,
+            )
+            await adapter.start()
+            self._adapters.append(adapter)
+            runner = LiveMissionRunner(scenario, fleet=adapter, settings=self._settings)
+            runtime = MissionRuntime(runner=runner, time_scale=1.0, fleet_kind="px4")
+        else:
+            runner = ScenarioRunner(scenario, settings=self._settings)
+            runtime = MissionRuntime(runner=runner, time_scale=time_scale)
 
         async def forward(event: DomainEvent) -> None:
             runtime.broadcast(
@@ -102,7 +119,12 @@ class MissionRegistry:
             ):
                 snap = await runner.step()
                 runtime.broadcast({"kind": "snapshot", "data": runtime.payload(snap)})
-                await asyncio.sleep(runner.scenario.tick_s / runtime.time_scale)
+                tick = (
+                    runner.tick_s
+                    if isinstance(runner, LiveMissionRunner)
+                    else runner.scenario.tick_s
+                )
+                await asyncio.sleep(tick / runtime.time_scale)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -118,6 +140,8 @@ class MissionRegistry:
                 runtime.task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await runtime.task
+        for adapter in self._adapters:
+            await adapter.stop()
 
 
 def snapshot_payload(

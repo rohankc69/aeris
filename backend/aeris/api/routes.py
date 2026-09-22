@@ -49,6 +49,7 @@ def _summary(runtime: MissionRuntime) -> MissionSummary:
         name=snap.mission.name,
         status=snap.mission.status,
         scenario=runtime.runner.scenario.name,
+        fleet=runtime.fleet_kind,
         time_scale=runtime.time_scale,
         running=runtime.running,
         elapsed_s=runtime.runner.elapsed_s,
