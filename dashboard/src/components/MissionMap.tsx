@@ -1,7 +1,7 @@
 "use client";
 
 import { GeoJSONSource, Map as MapLibreMap, type MapLayerMouseEvent, type StyleSpecification } from "maplibre-gl";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { bounds, dronesToFeatureCollection, pointFeature, polygonRing, zonesToFeatureCollection } from "@/lib/geo";
 import type { Snapshot } from "@/lib/types";
 
@@ -34,12 +34,14 @@ interface Props {
   onSelectDrone: (droneId: string) => void;
   /** Incremented by the parent to ask the map to fly to the selected drone. */
   focusRequest: number;
+  trails: Record<string, [number, number][]>;
 }
 
-export function MissionMap({ snapshot, selectedDrone, onSelectDrone, focusRequest }: Props) {
+export function MissionMap({ snapshot, selectedDrone, onSelectDrone, focusRequest, trails }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const fittedMission = useRef<string | null>(null);
+  const [follow, setFollow] = useState(false);
 
   const recenter = () => {
     const m = map.current;
@@ -61,6 +63,8 @@ export function MissionMap({ snapshot, selectedDrone, onSelectDrone, focusReques
       m.addSource("drones", { type: "geojson", data: emptyCollection() });
       m.addSource("base", { type: "geojson", data: emptyCollection() });
       m.addSource("detections", { type: "geojson", data: emptyCollection() });
+      m.addSource("plans", { type: "geojson", data: emptyCollection() });
+      m.addSource("trails", { type: "geojson", data: emptyCollection() });
 
       m.addLayer({
         id: "zones-fill",
@@ -89,6 +93,18 @@ export function MissionMap({ snapshot, selectedDrone, onSelectDrone, focusReques
         type: "line",
         source: "area",
         paint: { "line-color": "#4cc2ff", "line-width": 2, "line-dasharray": [2, 2] },
+      });
+      m.addLayer({
+        id: "plans",
+        type: "line",
+        source: "plans",
+        paint: { "line-color": "#4cc2ff", "line-width": 1.5, "line-dasharray": [1, 2], "line-opacity": 0.7 },
+      });
+      m.addLayer({
+        id: "trails",
+        type: "line",
+        source: "trails",
+        paint: { "line-color": ["get", "color"], "line-width": 3, "line-opacity": 0.9 },
       });
       m.addLayer({
         id: "base",
@@ -208,20 +224,58 @@ export function MissionMap({ snapshot, selectedDrone, onSelectDrone, focusReques
       ),
     });
 
+    setData("plans", {
+      type: "FeatureCollection",
+      features: Object.entries(snapshot.plans ?? {})
+        .filter(([, pts]) => pts.length > 1)
+        .map(([droneId, pts]) => ({
+          type: "Feature",
+          properties: { drone_id: droneId },
+          geometry: { type: "LineString", coordinates: pts },
+        })),
+    });
+    const trailColors = ["#4cc2ff", "#d29922", "#3fb950", "#c678dd", "#f85149"];
+    setData("trails", {
+      type: "FeatureCollection",
+      features: Object.entries(trails)
+        .filter(([, pts]) => pts.length > 1)
+        .map(([droneId, pts], i) => ({
+          type: "Feature",
+          properties: { drone_id: droneId, color: droneId === selectedDrone ? "#ffffff" : trailColors[i % trailColors.length] },
+          geometry: { type: "LineString", coordinates: pts },
+        })),
+    });
+
     // Zoom to the search area whenever a different mission is shown, not just the first one.
     if (fittedMission.current !== snapshot.mission.mission_id) {
       m.fitBounds(bounds(snapshot.mission.search_area.polygon), { padding: 60, duration: 0 });
       fittedMission.current = snapshot.mission.mission_id;
     }
-  }, [snapshot, selectedDrone]);
+
+    // Follow mode keeps the selected drone centred as it moves.
+    if (follow && selectedDrone) {
+      const view = snapshot.drones.find((d) => d.drone.drone_id === selectedDrone);
+      if (view?.state) {
+        m.easeTo({ center: [view.state.position.longitude, view.state.position.latitude], duration: 900 });
+      }
+    }
+  }, [snapshot, selectedDrone, trails, follow]);
 
   return (
     <div className="map">
       <div ref={container} className="map-canvas" />
       {snapshot && (
-        <button className="map-recenter" onClick={recenter} title="Zoom to the search area">
-          Recenter
-        </button>
+        <div className="map-controls">
+          <button onClick={recenter} title="Zoom to the search area">Recenter</button>
+          <button
+            className={follow ? "active" : ""}
+            disabled={!selectedDrone}
+            onClick={() => setFollow((f) => !f)}
+            title="Keep the selected drone centred"
+          >
+            {follow ? "Following " + (selectedDrone ?? "") : "Follow drone"}
+          </button>
+        </div>
       )}
     </div>
   );

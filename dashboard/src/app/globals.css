@@ -344,11 +344,18 @@ button.confirm {
   inset: 0;
 }
 
-.map-recenter {
+.map-controls {
   position: absolute;
   top: 10px;
   left: 10px;
   z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+
+.map-controls button.active {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 button.primary {

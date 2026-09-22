@@ -56,8 +56,16 @@ class MissionRuntime:
 
     def payload(self, snap: WorldSnapshot | None = None) -> dict[str, object]:
         snap = snap or self.runner.world.snapshot()
+        manager = self.runner.manager
+        plans: dict[str, list[list[float]]] = {}
+        for view in snap.drones:
+            plan = manager.plan_for(view.drone.drone_id)
+            if plan is not None:
+                plans[view.drone.drone_id] = [
+                    [w.position.longitude, w.position.latitude] for w in plan.waypoints
+                ]
         return snapshot_payload(
-            snap, emergency_stop_active=self.runner.manager.emergency_stop_active
+            snap, emergency_stop_active=manager.emergency_stop_active, plans=plans
         )
 
     def broadcast(self, message: dict[str, object]) -> None:
@@ -160,10 +168,14 @@ class MissionRegistry:
 
 
 def snapshot_payload(
-    snap: WorldSnapshot, *, emergency_stop_active: bool = False
+    snap: WorldSnapshot,
+    *,
+    emergency_stop_active: bool = False,
+    plans: dict[str, list[list[float]]] | None = None,
 ) -> dict[str, object]:
-    """Compact snapshot for the wire: mission, drones, zones, coverage."""
+    """Compact snapshot for the wire: mission, drones, zones, coverage, current plans."""
     return {
+        "plans": plans or {},
         "taken_at": snap.taken_at.isoformat(),
         "snapshot_hash": snap.snapshot_hash,
         "mission": snap.mission.model_dump(mode="json"),

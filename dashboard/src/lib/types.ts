@@ -115,6 +115,8 @@ export interface Snapshot {
   zones: Zone[];
   detections: Detection[];
   candidates: Candidate[];
+  /** drone_id -> [lon, lat] waypoints of the plan currently being flown */
+  plans?: Record<string, [number, number][]>;
 }
 
 export interface MissionSummary {

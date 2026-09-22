@@ -22,7 +22,7 @@ export default function CommandCenter() {
     setFocusRequest((n) => n + 1);
   };
   const [bottomTab, setBottomTab] = useState<"coverage" | "decisions">("coverage");
-  const { snapshot, events, decisions, safetyEvents, connected } = useMissionStream(missionId);
+  const { snapshot, events, decisions, safetyEvents, trails, connected } = useMissionStream(missionId);
   const status = snapshot?.mission.status ?? null;
   const overrides = decisions.filter((d) => d.safety_override).length;
   const estop = snapshot?.emergency_stop_active ?? false;
@@ -47,6 +47,7 @@ export default function CommandCenter() {
         selectedDrone={selectedDrone}
         onSelectDrone={setSelectedDrone}
         focusRequest={focusRequest}
+        trails={trails}
       />
 
       <aside className="panel">
