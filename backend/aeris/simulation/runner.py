@@ -9,7 +9,11 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from aeris.clock import SimClock
-from aeris.config import SafetySettings
+from aeris.config import Settings, load_settings
+from aeris.decisions.base import DecisionProvider
+from aeris.decisions.engine import DecisionEngine
+from aeris.decisions.factory import build_decision_provider
+from aeris.decisions.rules import RuleBasedDecisionProvider
 from aeris.domain.enums import MissionStatus
 from aeris.events.bus import EventBus, InMemoryEventBus
 from aeris.events.events import DomainEvent
@@ -18,6 +22,7 @@ from aeris.mission.manager import MissionManager
 from aeris.planning.assignment import GreedyAssignmentStrategy
 from aeris.planning.coverage import BoustrophedonPlanner
 from aeris.planning.partition import GridPartitioner
+from aeris.safety.governor import SafetyGovernor
 from aeris.simulation.scenario import Scenario, ScenarioEvent, ScenarioEventType
 from aeris.world.service import WorldStateService
 from aeris.world.snapshot import WorldSnapshot
@@ -33,6 +38,9 @@ class SimulationSummary(BaseModel):
     zones_total: int
     zones_complete: int
     reassignments: int
+    decisions: int
+    safety_overrides: int
+    decision_provider: str
     events_applied: int
     event_counts: dict[str, int]
 
@@ -48,14 +56,19 @@ class ScenarioRunner:
         self,
         scenario: Scenario,
         *,
-        safety: SafetySettings | None = None,
+        settings: Settings | None = None,
+        decision_provider: DecisionProvider | None = None,
         bus: EventBus | None = None,
         start: datetime | None = None,
     ) -> None:
         self.scenario = scenario
         self.clock = SimClock(start)
         self.bus = bus or InMemoryEventBus()
-        self._safety = safety or SafetySettings()
+        self.settings = settings or load_settings()
+        self._safety = self.settings.safety
+        self.decision_provider = decision_provider or build_decision_provider(
+            self.settings, clock=self.clock
+        )
         self._elapsed_s = 0.0
         self._ticks = 0
         self._pending_events = sorted(scenario.events, key=lambda e: e.at_s)
@@ -88,7 +101,14 @@ class ScenarioRunner:
             fleet=self.fleet,
             coverage_planner=BoustrophedonPlanner(),
             assignment_strategy=GreedyAssignmentStrategy(),
+            safety=SafetyGovernor(self._safety),
             clock=self.clock,
+            decision_engine=DecisionEngine(
+                provider=self.decision_provider,
+                policy=RuleBasedDecisionProvider(safety=self._safety),
+                clock=self.clock,
+            ),
+            disposition_interval_s=self.settings.decision.disposition_interval_s,
         )
 
     @property
@@ -153,6 +173,9 @@ class ScenarioRunner:
             zones_total=len(snap.zones),
             zones_complete=sum(z.status.value == "COMPLETE" for z in snap.zones),
             reassignments=self._event_counts.get("ZoneReassignmentRequested", 0),
+            decisions=len(self.world.decisions),
+            safety_overrides=len(self.world.safety_events),
+            decision_provider=self.decision_provider.name,
             events_applied=self._applied_events,
             event_counts=dict(sorted(self._event_counts.items())),
         )
