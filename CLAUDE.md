@@ -194,7 +194,8 @@ cd backend
 uv run aeris sim list
 uv run aeris sim run --scenario basic_search             # headless, prints per-minute progress + JSON summary
 uv run aeris sim run --scenario lost_connection --quiet --output out.json
-uv run aeris sim run --scenario forest_search           # the full MVP demo
+uv run aeris sim run --scenario forest_search --events  # the full MVP demo with a live event feed
+uv run aeris watch <mission_id>                          # tail a running API mission's events
 # see docs/simulation.md for the scenario schema and the bundled scenarios
 ```
 

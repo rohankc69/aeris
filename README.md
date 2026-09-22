@@ -139,11 +139,13 @@ runs in-process with no external services.
 cd backend
 uv run aeris sim list
 uv run aeris sim run --scenario basic_search
+uv run aeris sim run --scenario forest_search --events        # every decision and event, live
 uv run aeris sim run --scenario lost_connection --quiet --output out.json
+uv run aeris watch <mission_id>                               # tail a running API/dashboard mission
 ```
 
-The run prints per-minute fleet status and ends with a JSON summary (final status, coverage,
-zones completed, reassignments, event counts).
+The run prints per-minute fleet status (or, with `--events`, every decision, safety override,
+handoff, detection and operator action as it happens) and ends with a JSON summary.
 
 Scenarios are YAML files under `sim/scenarios/`. They define the fleet, search area, base,
 missing person, and a timeline of events (battery anomalies, thermal candidates, link loss).
