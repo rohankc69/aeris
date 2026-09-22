@@ -13,6 +13,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from fastapi.responses import PlainTextResponse
 
 from aeris.api.runtime import MissionRegistry, MissionRuntime
 from aeris.api.schemas import CommandResponse, CreateMissionRequest, MissionSummary
@@ -132,6 +133,18 @@ async def get_zones(mission_id: str, registry: Registry) -> list[dict[str, objec
 async def get_detections(mission_id: str, registry: Registry) -> list[dict[str, object]]:
     runtime = _runtime_or_404(registry, mission_id)
     return [d.model_dump(mode="json") for d in runtime.runner.world.snapshot().detections]
+
+
+@router.get("/missions/{mission_id}/metrics")
+async def get_metrics(mission_id: str, registry: Registry) -> dict[str, object]:
+    runtime = _runtime_or_404(registry, mission_id)
+    return runtime.runner.metrics.summary()
+
+
+@router.get("/missions/{mission_id}/metrics/prometheus", response_class=PlainTextResponse)
+async def get_metrics_prometheus(mission_id: str, registry: Registry) -> str:
+    runtime = _runtime_or_404(registry, mission_id)
+    return runtime.runner.metrics.registry.render_prometheus()
 
 
 @router.get("/missions/{mission_id}/candidates")

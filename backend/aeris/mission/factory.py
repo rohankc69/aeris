@@ -18,6 +18,7 @@ from aeris.planning.assignment import GreedyAssignmentStrategy
 from aeris.planning.coverage import BoustrophedonPlanner
 from aeris.planning.partition import GridPartitioner
 from aeris.safety.governor import SafetyGovernor
+from aeris.telemetry.metrics import MissionMetrics
 from aeris.world.service import WorldStateService
 
 
@@ -27,6 +28,7 @@ class MissionStack:
     manager: MissionManager
     bus: EventBus
     decision_provider: DecisionProvider
+    metrics: MissionMetrics
 
 
 def build_mission_stack(
@@ -40,6 +42,8 @@ def build_mission_stack(
     bus: EventBus | None = None,
 ) -> MissionStack:
     bus = bus or InMemoryEventBus()
+    metrics = MissionMetrics()
+    metrics.attach(bus)
     provider = decision_provider or build_decision_provider(settings, clock=clock)
     zones = GridPartitioner(
         cell_size_m=zone_size_m, restricted_clearance_m=settings.safety.restricted_clearance_m
@@ -61,4 +65,6 @@ def build_mission_stack(
         ),
         settings=settings,
     )
-    return MissionStack(world=world, manager=manager, bus=bus, decision_provider=provider)
+    return MissionStack(
+        world=world, manager=manager, bus=bus, decision_provider=provider, metrics=metrics
+    )

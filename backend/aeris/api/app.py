@@ -11,11 +11,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from aeris import __version__
 from aeris.api.routes import router
 from aeris.api.runtime import MissionRegistry
-from aeris.config import Settings, load_settings
+from aeris.config import Environment, Settings, load_settings
+from aeris.telemetry.logging import configure_logging
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
+    configure_logging(json_output=settings.env is Environment.PRODUCTION)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:

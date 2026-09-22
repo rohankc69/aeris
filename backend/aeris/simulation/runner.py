@@ -38,6 +38,7 @@ class SimulationSummary(BaseModel):
     decision_provider: str
     events_applied: int
     event_counts: dict[str, int]
+    metrics: dict[str, object] = {}
 
 
 class ScenarioRunner:
@@ -65,6 +66,7 @@ class ScenarioRunner:
         self._pending_events = sorted(scenario.events, key=lambda e: e.at_s)
         self._applied_events = 0
         self._person_located_at_s: float | None = None
+        self._decisions_seen = 0
         self._event_counts: dict[str, int] = {}
         self.bus.subscribe(None, self._count_event)
 
@@ -105,6 +107,7 @@ class ScenarioRunner:
         self.world = stack.world
         self.manager = stack.manager
         self.decision_provider = stack.decision_provider
+        self.metrics = stack.metrics
 
     @property
     def elapsed_s(self) -> float:
@@ -125,7 +128,10 @@ class ScenarioRunner:
         self._ticks += 1
         self.fleet.advance(dt)
         await self._apply_due_events()
-        return await self.manager.tick()
+        snap = await self.manager.tick()
+        self.metrics.set_coverage(snap.coverage_fraction)
+        self._observe_new_decisions()
+        return snap
 
     async def run(
         self, on_tick: Callable[[WorldSnapshot], None] | None = None
@@ -156,6 +162,15 @@ class ScenarioRunner:
             await asyncio.sleep(self.scenario.tick_s / time_scale)
         return self.summary()
 
+    def _observe_new_decisions(self) -> None:
+        records = self.world.decisions
+        for record in records[self._decisions_seen :]:
+            self.metrics.observe_decision_latency(record.provider, record.latency_ms)
+            self.metrics.observe_tokens_and_cost(
+                record.provider, record.input_tokens, record.estimated_cost_usd
+            )
+        self._decisions_seen = len(records)
+
     def summary(self) -> SimulationSummary:
         snap = self.world.snapshot()
         return SimulationSummary(
@@ -176,6 +191,7 @@ class ScenarioRunner:
             decision_provider=self.decision_provider.name,
             events_applied=self._applied_events,
             event_counts=dict(sorted(self._event_counts.items())),
+            metrics=self.metrics.summary(),
         )
 
     # ------------------------------------------------------------------ internals
