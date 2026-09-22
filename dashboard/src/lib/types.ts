@@ -91,6 +91,18 @@ export interface Detection {
   position: GeoPoint;
   zone_id: string | null;
   triage: string | null;
+  investigating_drone_id: string | null;
+  observations: { source: string; confidence: number; drone_id: string; timestamp: string }[];
+  first_observed_at: string;
+  last_observed_at: string;
+}
+
+export interface Candidate {
+  candidate_id: string;
+  detection_id: string;
+  escalated_at: string;
+  position: GeoPoint;
+  confirmed: boolean | null;
 }
 
 export interface Snapshot {
@@ -102,6 +114,7 @@ export interface Snapshot {
   drones: DroneView[];
   zones: Zone[];
   detections: Detection[];
+  candidates: Candidate[];
 }
 
 export interface MissionSummary {

@@ -5,6 +5,6 @@ simulated fleet that needs no ROS or PX4. ``PX4FleetAdapter`` is planned for Pha
 """
 
 from aeris.fleet.base import CommandResult, FleetAdapter
-from aeris.fleet.fake import FakeFleetAdapter, SimDroneConfig
+from aeris.fleet.fake import FakeFleetAdapter, SimDroneConfig, SimSensorTarget
 
-__all__ = ["CommandResult", "FakeFleetAdapter", "FleetAdapter", "SimDroneConfig"]
+__all__ = ["CommandResult", "FakeFleetAdapter", "FleetAdapter", "SimDroneConfig", "SimSensorTarget"]

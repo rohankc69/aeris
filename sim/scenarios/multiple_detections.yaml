@@ -1,0 +1,38 @@
+# Two separate candidate detections far apart, one of them a false positive. Sensors disagree
+# on the first; the second is confirmed. Exercises clustering, human review and rejection.
+name: multiple_detections
+description: Two candidates; one rejected by the operator, one confirmed.
+seed: 7
+base_position: { latitude: 47.3769, longitude: 8.5417, altitude_m: 0 }
+search_polygon:
+  vertices:
+    - { latitude: 47.3780, longitude: 8.5430 }
+    - { latitude: 47.3780, longitude: 8.5510 }
+    - { latitude: 47.3834, longitude: 8.5510 }
+    - { latitude: 47.3834, longitude: 8.5430 }
+missing_person:
+  position: { latitude: 47.3790, longitude: 8.5500 }
+  detection_range_m: 60
+  thermal_confidence: 0.5
+  visual_confidence: 0.4
+search_altitude_m: 60
+overlap_fraction: 0.2
+zone_size_m: 200
+tick_s: 1.0
+max_duration_s: 3600
+drones:
+  - drone_id: drone-01
+    capability: { camera: true, thermal: true, cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+  - drone_id: drone-02
+    capability: { camera: true, thermal: true, cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+  - drone_id: drone-03
+    capability: { camera: true, thermal: true, cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+events:
+  # false positive in the north-west: thermal says warm rock, visual sees nothing
+  - { at_s: 120, type: detection, drone_id: drone-01, source: THERMAL, value: 0.72, position: { latitude: 47.3828, longitude: 8.5436 }, note: "warm rock" }
+  - { at_s: 122, type: detection, drone_id: drone-01, source: VISUAL, value: 0.15, position: { latitude: 47.3828, longitude: 8.5436 } }
+  - { at_s: 200, type: operator_reject, note: "operator: warm rock, not a person" }
+  # the real person in the south-east
+  - { at_s: 420, type: detection, drone_id: drone-02, source: THERMAL, value: 0.85, movement: true }
+  - { at_s: 422, type: detection, drone_id: drone-02, source: VISUAL, value: 0.8 }
+  - { at_s: 500, type: operator_confirm, note: "operator confirms survivor" }

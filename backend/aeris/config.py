@@ -101,6 +101,16 @@ class DecisionSettings(BaseModel):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
 
+class DetectionSettings(BaseModel):
+    """How candidate detections are clustered and investigated."""
+
+    cluster_radius_m: float = Field(30.0, gt=0)
+    investigate_altitude_m: float = Field(30.0, gt=0)
+    investigate_box_m: float = Field(
+        40.0, gt=0, description="Side of the box flown around a detection"
+    )
+
+
 class Settings(BaseSettings):
     """Top-level AERIS settings, loaded from the environment."""
 
@@ -129,6 +139,7 @@ class Settings(BaseSettings):
 
     safety: SafetySettings = Field(default_factory=SafetySettings)
     decision: DecisionSettings = Field(default_factory=DecisionSettings)
+    detection: DetectionSettings = Field(default_factory=DetectionSettings)
 
     @model_validator(mode="after")
     def _hosted_provider_requires_credentials(self) -> Settings:

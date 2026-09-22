@@ -93,7 +93,13 @@ export function MissionMap({ snapshot, selectedDrone, onSelectDrone }: Props) {
         id: "detections",
         type: "circle",
         source: "detections",
-        paint: { "circle-radius": 8, "circle-color": "#f85149", "circle-opacity": 0.8 },
+        paint: {
+          "circle-radius": ["match", ["get", "kind"], "confirmed", 11, "candidate", 9, 6],
+          "circle-color": ["match", ["get", "kind"], "confirmed", "#3fb950", "candidate", "#f85149", "#d29922"],
+          "circle-opacity": 0.85,
+          "circle-stroke-color": "#0f1419",
+          "circle-stroke-width": 2,
+        },
       });
       m.addLayer({
         id: "drones",
@@ -169,9 +175,16 @@ export function MissionMap({ snapshot, selectedDrone, onSelectDrone }: Props) {
       ],
     });
     setData("base", { type: "FeatureCollection", features: [pointFeature(snapshot.mission.base_position, { label: "BASE" })] });
+    const openCandidates = new Set(snapshot.candidates.filter((c) => c.confirmed === null).map((c) => c.detection_id));
+    const confirmed = new Set(snapshot.candidates.filter((c) => c.confirmed === true).map((c) => c.detection_id));
     setData("detections", {
       type: "FeatureCollection",
-      features: snapshot.detections.map((d) => pointFeature(d.position, { id: d.detection_id })),
+      features: snapshot.detections.map((d) =>
+        pointFeature(d.position, {
+          id: d.detection_id,
+          kind: confirmed.has(d.detection_id) ? "confirmed" : openCandidates.has(d.detection_id) ? "candidate" : "detection",
+        }),
+      ),
     });
 
     if (!fitted.current) {

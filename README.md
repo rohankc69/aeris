@@ -7,10 +7,10 @@ It maintains a shared view of a mission, coordinates search assignments, reacts 
 and vehicle failures, and uses bounded AI decisions while deterministic safety systems retain
 final authority.
 
-> Status: **Phase 3 complete.** Three simulated drones search a region with bounded AI decisions,
-> a deterministic Safety Governor (battery, link, altitude, geofence, restricted regions,
-> separation, plan validation, emergency stop), dynamic reassignment, a full decision audit
-> trail and a live dashboard, all without ROS, PX4, a database or an AI key. See [Roadmap](#roadmap).
+> Status: **MVP demo complete (Phases 0 to 3 and 5).** `aeris sim run --scenario forest_search`
+> plays the full mission: three simulated drones, a degrading battery, a weak-then-strong
+> detection, automatic reassignment, bounded AI triage, a deterministic Safety Governor, and a
+> human confirming the survivor. No ROS, PX4, database or AI key required. See [Roadmap](#roadmap).
 
 ---
 
@@ -37,7 +37,7 @@ The answer combines three kinds of intelligence, each kept in its lane:
 AI decides bounded mission questions. Algorithms plan. PX4 flies. Safety code has final
 authority. Humans can always intervene.
 
-## What it will demonstrate
+## What it demonstrates
 
 The MVP is one reproducible simulated mission:
 
@@ -208,7 +208,7 @@ need rescue. See [docs/safety.md](docs/safety.md).
 | 2 | Decision providers (Mock, Rules, Jev via OpenRouter), DecisionRecord, decision inspector, fallback ✅ |
 | 3 | Safety Governor extended (geofence, altitude, separation, plan validation, restricted regions), e-stop, dynamic reassignment ✅ |
 | 4 | ROS 2 / PX4 SITL / Gazebo with three vehicles ← **next** |
-| 5 | Detection simulation, complete forest-search scenario |
+| 5 | Detection simulation, complete forest-search scenario ✅ |
 | 6 | Evaluation harness, docs, screenshots, contributor experience |
 
 ## Contributing

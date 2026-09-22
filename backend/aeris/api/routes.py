@@ -133,6 +133,12 @@ async def get_detections(mission_id: str, registry: Registry) -> list[dict[str, 
     return [d.model_dump(mode="json") for d in runtime.runner.world.snapshot().detections]
 
 
+@router.get("/missions/{mission_id}/candidates")
+async def get_candidates(mission_id: str, registry: Registry) -> list[dict[str, object]]:
+    runtime = _runtime_or_404(registry, mission_id)
+    return [c.model_dump(mode="json") for c in runtime.runner.world.snapshot().candidates]
+
+
 @router.get("/missions/{mission_id}/decisions")
 async def get_decisions(mission_id: str, registry: Registry) -> list[dict[str, object]]:
     runtime = _runtime_or_404(registry, mission_id)
@@ -208,6 +214,71 @@ async def abort_mission(mission_id: str, registry: Registry) -> CommandResponse:
     except ValueError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     return _command_response(runtime, "aborted")
+
+
+@router.post("/missions/{mission_id}/candidates/{candidate_id}/confirm")
+async def confirm_candidate(
+    mission_id: str, candidate_id: str, registry: Registry
+) -> CommandResponse:
+    runtime = _runtime_or_404(registry, mission_id)
+    try:
+        await runtime.runner.manager.confirm_candidate(candidate_id)
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return _command_response(runtime, "survivor confirmed by operator")
+
+
+@router.post("/missions/{mission_id}/candidates/{candidate_id}/reject")
+async def reject_candidate(
+    mission_id: str, candidate_id: str, registry: Registry
+) -> CommandResponse:
+    runtime = _runtime_or_404(registry, mission_id)
+    try:
+        await runtime.runner.manager.reject_candidate(candidate_id)
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return _command_response(runtime, "candidate rejected by operator")
+
+
+@router.post("/missions/{mission_id}/detections/{detection_id}/confirm")
+async def confirm_detection(
+    mission_id: str, detection_id: str, registry: Registry
+) -> CommandResponse:
+    """Operator confirms a detection directly; it is escalated first if it was not already."""
+    runtime = _runtime_or_404(registry, mission_id)
+    world = runtime.runner.world
+    if world.detection(detection_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"detection {detection_id} not found")
+    candidate = world.candidate_for_detection(detection_id) or await world.escalate_candidate(
+        detection_id
+    )
+    try:
+        await runtime.runner.manager.confirm_candidate(candidate.candidate_id)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return _command_response(runtime, "survivor confirmed by operator")
+
+
+@router.post("/missions/{mission_id}/detections/{detection_id}/reject")
+async def reject_detection(
+    mission_id: str, detection_id: str, registry: Registry
+) -> CommandResponse:
+    runtime = _runtime_or_404(registry, mission_id)
+    world = runtime.runner.world
+    if world.detection(detection_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"detection {detection_id} not found")
+    candidate = world.candidate_for_detection(detection_id) or await world.escalate_candidate(
+        detection_id
+    )
+    try:
+        await runtime.runner.manager.reject_candidate(candidate.candidate_id)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return _command_response(runtime, "candidate rejected by operator")
 
 
 @router.post("/missions/{mission_id}/estop")

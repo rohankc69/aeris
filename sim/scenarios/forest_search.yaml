@@ -1,0 +1,50 @@
+# The headline demo. 1 km x 1 km forest, three quadcopters, one missing person.
+#
+#   T+0      mission starts
+#   T+2 min  drone-02 battery begins degrading faster than expected
+#   T+4 min  drone-03 detects a weak thermal candidate
+#   T+5 min  AERIS requests additional investigation (triage: INVESTIGATE / RECHECK)
+#   T+6 min  drone-02 reaches its safe return threshold and returns; its zone is reassigned
+#   T+8 min  the candidate receives stronger sensor evidence
+#   T+8.2    operator receives a confirmation request (candidate escalated)
+#   T+9 min  operator confirms the survivor -> PERSON_LOCATED
+#
+# Times are simulated seconds; run with `aeris sim run --scenario forest_search`.
+name: forest_search
+description: Full MVP demo. Battery degradation, weak-then-strong detection, reassignment, human confirmation.
+seed: 42
+base_position: { latitude: 46.9700, longitude: 8.0000, altitude_m: 0 }
+search_polygon:
+  vertices:
+    - { latitude: 46.9720, longitude: 8.0020 }
+    - { latitude: 46.9720, longitude: 8.0151 }
+    - { latitude: 46.9810, longitude: 8.0151 }
+    - { latitude: 46.9810, longitude: 8.0020 }
+last_known_position: { latitude: 46.9790, longitude: 8.0130 }
+missing_person:
+  position: { latitude: 46.9797, longitude: 8.0138 }
+  detection_range_m: 70
+  thermal_confidence: 0.40
+  visual_confidence: 0.20
+  sighting_cooldown_s: 30
+search_altitude_m: 60
+overlap_fraction: 0.2
+zone_size_m: 250
+tick_s: 1.0
+max_duration_s: 3600
+drones:
+  - drone_id: drone-01
+    name: Drone 01
+    capability: { camera: true, thermal: true, cruise_speed_mps: 12, nominal_endurance_s: 1800, camera_footprint_width_m: 45 }
+  - drone_id: drone-02
+    name: Drone 02
+    capability: { camera: true, thermal: false, cruise_speed_mps: 12, nominal_endurance_s: 1800, camera_footprint_width_m: 45 }
+  - drone_id: drone-03
+    name: Drone 03
+    capability: { camera: true, thermal: true, cruise_speed_mps: 12, nominal_endurance_s: 1800, camera_footprint_width_m: 45 }
+events:
+  - { at_s: 120, type: battery_drain_multiplier, drone_id: drone-02, value: 5.0, note: "T+2 battery degrading" }
+  - { at_s: 240, type: detection, drone_id: drone-03, source: THERMAL, value: 0.42, note: "T+4 weak thermal candidate" }
+  - { at_s: 480, type: detection, drone_id: drone-03, source: THERMAL, value: 0.86, movement: true, note: "T+8 stronger evidence" }
+  - { at_s: 482, type: detection, drone_id: drone-03, source: VISUAL, value: 0.78, note: "T+8 visual agrees" }
+  - { at_s: 540, type: operator_confirm, note: "T+9 operator confirms survivor" }

@@ -64,14 +64,18 @@ def test_choice_request_rejects_duplicate_choices() -> None:
 # ----------------------------------------------------------------- mock
 
 
-async def test_mock_defaults_to_first_choice_and_records_calls() -> None:
+async def test_mock_defaults_to_rule_answer_and_records_calls() -> None:
     mock = MockDecisionProvider()
     result = await mock.choice(disposition_request())
     assert result.selected == "CONTINUE_SEARCH"
     assert result.provider == "mock"
     assert sum(result.probabilities.values()) == pytest.approx(1.0)
-    assert result.confidence == pytest.approx(0.7)
-    assert len(mock.calls) == 1
+    assert (await mock.choice(disposition_request(battery_percent=20))).selected == "RETURN_TO_BASE"
+    assert len(mock.calls) == 2
+    fixed = await MockDecisionProvider(fixed_choices={"drone_disposition": "HOLD"}).choice(
+        disposition_request()
+    )
+    assert fixed.confidence == pytest.approx(0.7)
 
 
 async def test_mock_scripts_and_fixed_answers() -> None:

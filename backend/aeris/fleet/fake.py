@@ -12,8 +12,9 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from aeris.clock import Clock
+from aeris.domain.enums import DetectionSource
 from aeris.domain.geo import GeoPoint
-from aeris.domain.models import Drone, TelemetryFrame, WaypointPlan
+from aeris.domain.models import DetectionObservation, Drone, TelemetryFrame, WaypointPlan
 from aeris.fleet.base import CommandResult
 from aeris.planning.geo_frame import LocalFrame
 
@@ -24,6 +25,21 @@ class SimFlightMode(StrEnum):
     RETURNING = "RETURNING"
     HOLDING = "HOLDING"
     LANDED = "LANDED"
+
+
+@dataclass(frozen=True)
+class SimSensorTarget:
+    """A simulated person the fake sensors can see (**simulated** perception).
+
+    When a drone with the matching sensor passes within ``range_m`` an observation is emitted
+    with the configured confidence, at most once per ``cooldown_s`` per drone.
+    """
+
+    position: GeoPoint
+    range_m: float = 60.0
+    thermal_confidence: float = 0.55
+    visual_confidence: float = 0.35
+    cooldown_s: float = 20.0
 
 
 @dataclass(frozen=True)
@@ -54,9 +70,17 @@ class _SimDrone:
 
 class FakeFleetAdapter:
     def __init__(
-        self, *, base_position: GeoPoint, clock: Clock, drones: list[SimDroneConfig]
+        self,
+        *,
+        base_position: GeoPoint,
+        clock: Clock,
+        drones: list[SimDroneConfig],
+        targets: list[SimSensorTarget] | None = None,
     ) -> None:
         self._clock = clock
+        self._targets = list(targets or [])
+        self._observations: list[DetectionObservation] = []
+        self._last_sighting: dict[tuple[str, int], float] = {}
         self._frame = LocalFrame(base_position)
         self._base_xy = (0.0, 0.0)
         self._drones: dict[str, _SimDrone] = {}
@@ -96,6 +120,11 @@ class FakeFleetAdapter:
                 )
             )
         return frames
+
+    async def get_observations(self) -> list[DetectionObservation]:
+        out = [o for o in self._observations if self._drones[o.drone_id].link_online]
+        self._observations = [o for o in self._observations if o not in out]
+        return out
 
     async def send_mission(self, drone_id: str, plan: WaypointPlan) -> CommandResult:
         sim = self._drones.get(drone_id)
@@ -139,6 +168,60 @@ class FakeFleetAdapter:
         """Advance every drone by ``dt_s`` seconds of simulated flight."""
         for sim in self._drones.values():
             self._step(sim, dt_s)
+        self._sense()
+
+    def inject_observation(
+        self,
+        drone_id: str,
+        *,
+        source: DetectionSource,
+        confidence: float,
+        position: GeoPoint,
+        movement_observed: bool = False,
+    ) -> DetectionObservation:
+        """Scripted sensor hit (scenario timeline). Reported on the next ``get_observations``."""
+        obs = DetectionObservation(
+            drone_id=drone_id,
+            timestamp=self._clock.now(),
+            source=source,
+            confidence=confidence,
+            position=position,
+            movement_observed=movement_observed,
+        )
+        self._observations.append(obs)
+        return obs
+
+    def _sense(self) -> None:
+        now = self._clock.now().timestamp()
+        for sim in self._drones.values():
+            if (
+                sim.mode not in {SimFlightMode.MISSION, SimFlightMode.HOLDING}
+                or sim.altitude_m <= 0
+            ):
+                continue
+            here = self._frame.to_geo(sim.x, sim.y, sim.altitude_m)
+            for index, target in enumerate(self._targets):
+                if here.distance_to(target.position) > target.range_m:
+                    continue
+                key = (sim.drone.drone_id, index)
+                last = self._last_sighting.get(key)
+                if last is not None and now - last < target.cooldown_s:
+                    continue
+                self._last_sighting[key] = now
+                if sim.drone.capability.thermal:
+                    self.inject_observation(
+                        sim.drone.drone_id,
+                        source=DetectionSource.THERMAL,
+                        confidence=target.thermal_confidence,
+                        position=target.position,
+                    )
+                if sim.drone.capability.camera:
+                    self.inject_observation(
+                        sim.drone.drone_id,
+                        source=DetectionSource.VISUAL,
+                        confidence=target.visual_confidence,
+                        position=target.position,
+                    )
 
     def set_link(self, drone_id: str, online: bool) -> None:
         self._drones[drone_id].link_online = online

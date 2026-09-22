@@ -60,6 +60,27 @@ than a HOLD requirement) passes; anything else is replaced and produces a `Safet
 `proposed_action` is `<provider>:<proposal>`. Jev may recommend an *earlier* return but can
 never delay a mandatory one.
 
+## Detection triage flow
+
+```
+sensor observation (fleet adapter)
+   → World State clusters it into a Detection (cluster_radius_m)
+   → detection_triage (bounded choice)
+        IGNORE            record and stop
+        RECHECK           an investigation pass by the best-placed drone
+        INVESTIGATE       an investigation pass by the best-placed drone
+        HUMAN_REVIEW      HumanReviewRequested; human_review_gate decides whether to escalate
+        POSSIBLE_SURVIVOR CandidateEscalated: the operator is asked to confirm
+   → operator confirms  → SurvivorConfirmed → PERSON_LOCATED
+   → operator rejects   → SurvivorRejected; detection marked IGNORE
+```
+
+A detection is only re-investigated when its triage ranks higher than at its last
+investigation, so repeat sightings do not bounce a drone back and forth. Choosing which drone
+investigates is deterministic (thermal-capable first, then nearest) and the investigation plan
+goes through the same Safety Governor plan validation as a search plan. Nothing in this flow
+lets a model, or AERIS itself, declare a person found.
+
 ## Zone priority in assignment
 
 When open zones exist, the engine scores each one with the bounded `zone_priority` question

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { CandidatesPanel } from "@/components/CandidatesPanel";
 import { DecisionInspector } from "@/components/DecisionInspector";
 import { EventLog } from "@/components/EventLog";
 import { FleetPanel } from "@/components/FleetPanel";
@@ -39,7 +40,15 @@ export default function CommandCenter() {
       <MissionMap snapshot={snapshot} selectedDrone={selectedDrone} onSelectDrone={setSelectedDrone} />
 
       <aside className="panel">
-        <h2>Fleet</h2>
+        {snapshot && (
+          <CandidatesPanel
+            detections={snapshot.detections}
+            candidates={snapshot.candidates}
+            onConfirm={(id) => missionId && api.candidateCommand(missionId, id, "confirm")}
+            onReject={(id) => missionId && api.candidateCommand(missionId, id, "reject")}
+          />
+        )}
+        <h2 style={{ marginTop: 12 }}>Fleet</h2>
         <FleetPanel
           snapshot={snapshot}
           selectedDrone={selectedDrone}

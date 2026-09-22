@@ -2,6 +2,7 @@
 
 from aeris.simulation.runner import ScenarioRunner, SimulationSummary
 from aeris.simulation.scenario import (
+    MissingPerson,
     Scenario,
     ScenarioDrone,
     ScenarioEvent,
@@ -12,6 +13,7 @@ from aeris.simulation.scenario import (
 )
 
 __all__ = [
+    "MissingPerson",
     "Scenario",
     "ScenarioDrone",
     "ScenarioEvent",

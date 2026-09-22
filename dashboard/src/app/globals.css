@@ -320,3 +320,21 @@ button.estop.active {
   background: var(--danger);
   color: #fff;
 }
+
+.candidate {
+  padding: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.candidate.open { border-color: var(--danger); }
+.candidate.confirmed { border-color: var(--ok); }
+.candidate.rejected { opacity: 0.6; }
+.candidate .name { font-weight: 600; }
+
+button.confirm {
+  border-color: var(--ok);
+  color: var(--ok);
+  font-weight: 600;
+}
