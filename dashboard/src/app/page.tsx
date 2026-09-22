@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { DecisionInspector } from "@/components/DecisionInspector";
 import { EventLog } from "@/components/EventLog";
 import { FleetPanel } from "@/components/FleetPanel";
 import { MissionControls } from "@/components/MissionControls";
@@ -14,8 +15,10 @@ const MissionMap = dynamic(() => import("@/components/MissionMap").then((m) => m
 export default function CommandCenter() {
   const [missionId, setMissionId] = useState<string | null>(null);
   const [selectedDrone, setSelectedDrone] = useState<string | null>(null);
-  const { snapshot, events, connected } = useMissionStream(missionId);
+  const [bottomTab, setBottomTab] = useState<"coverage" | "decisions">("coverage");
+  const { snapshot, events, decisions, safetyEvents, connected } = useMissionStream(missionId);
   const status = snapshot?.mission.status ?? null;
+  const overrides = decisions.filter((d) => d.safety_override).length;
 
   return (
     <main className="console">
@@ -41,24 +44,42 @@ export default function CommandCenter() {
           onSelect={setSelectedDrone}
           onReturn={(id) => missionId && api.droneCommand(missionId, id, "return")}
           onHold={(id) => missionId && api.droneCommand(missionId, id, "hold")}
+          decisions={decisions}
         />
       </aside>
 
       <section className="bottom">
         <div>
-          <h2>Search coverage: {snapshot ? `${Math.round(snapshot.coverage_fraction * 100)}%` : "–"}</h2>
-          <div className="coverage">
-            <div style={{ width: `${(snapshot?.coverage_fraction ?? 0) * 100}%` }} />
+          <div className="tabs">
+            <button className={bottomTab === "coverage" ? "active" : ""} onClick={() => setBottomTab("coverage")}>
+              Coverage {snapshot ? `${Math.round(snapshot.coverage_fraction * 100)}%` : ""}
+            </button>
+            <button className={bottomTab === "decisions" ? "active" : ""} onClick={() => setBottomTab("decisions")}>
+              Decisions {decisions.length}
+              {overrides > 0 ? ` · ${overrides} overridden` : ""}
+            </button>
+            {selectedDrone && bottomTab === "decisions" && (
+              <span className="small">filtered to {selectedDrone}</span>
+            )}
           </div>
-          {snapshot && (
-            <div className="zone-grid">
-              {snapshot.zones.map((z) => (
-                <div key={z.zone_id} title={z.status}>
-                  {z.zone_id} {Math.round(z.coverage * 100)}%
-                  <div className="small">{z.assigned_drone_id?.replace("drone-", "D") ?? z.status.toLowerCase()}</div>
+          {bottomTab === "coverage" ? (
+            <>
+              <div className="coverage">
+                <div style={{ width: `${(snapshot?.coverage_fraction ?? 0) * 100}%` }} />
+              </div>
+              {snapshot && (
+                <div className="zone-grid">
+                  {snapshot.zones.map((z) => (
+                    <div key={z.zone_id} title={z.status}>
+                      {z.zone_id} {Math.round(z.coverage * 100)}%
+                      <div className="small">{z.assigned_drone_id?.replace("drone-", "D") ?? z.status.toLowerCase()}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
+          ) : (
+            <DecisionInspector decisions={decisions} safetyEvents={safetyEvents} filterDrone={selectedDrone} />
           )}
         </div>
         <div>

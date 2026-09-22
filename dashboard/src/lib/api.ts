@@ -1,4 +1,4 @@
-import type { DomainEvent, MissionSummary, Snapshot } from "./types";
+import type { DecisionRecord, DomainEvent, MissionSummary, SafetyEvent, Snapshot } from "./types";
 
 export const API_URL =
   process.env.NEXT_PUBLIC_AERIS_API_URL ?? "http://localhost:8000";
@@ -26,6 +26,8 @@ export const api = {
   mission: (id: string) =>
     request<Snapshot & { summary: MissionSummary }>(`/api/v1/missions/${id}`),
   events: (id: string) => request<DomainEvent[]>(`/api/v1/missions/${id}/events`),
+  decisions: (id: string) => request<DecisionRecord[]>(`/api/v1/missions/${id}/decisions`),
+  safetyEvents: (id: string) => request<SafetyEvent[]>(`/api/v1/missions/${id}/safety-events`),
   createMission: (scenario: string, timeScale: number) =>
     request<MissionSummary>("/api/v1/missions", {
       method: "POST",

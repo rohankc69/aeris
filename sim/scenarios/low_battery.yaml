@@ -1,0 +1,26 @@
+# Drone 02's battery drains four times faster than expected from T+60s. The Safety Governor's
+# mandatory-return rule must send it home and its unfinished zone must be reassigned.
+name: low_battery
+description: One drone's battery degrades faster than expected; it returns and its zone is handed off.
+seed: 3
+base_position: { latitude: 47.3769, longitude: 8.5417, altitude_m: 0 }
+search_polygon:
+  vertices:
+    - { latitude: 47.3780, longitude: 8.5430 }
+    - { latitude: 47.3780, longitude: 8.5510 }
+    - { latitude: 47.3834, longitude: 8.5510 }
+    - { latitude: 47.3834, longitude: 8.5430 }
+search_altitude_m: 60
+overlap_fraction: 0.2
+zone_size_m: 200
+tick_s: 1.0
+max_duration_s: 3600
+drones:
+  - drone_id: drone-01
+    capability: { cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+  - drone_id: drone-02
+    capability: { cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+  - drone_id: drone-03
+    capability: { cruise_speed_mps: 10, camera_footprint_width_m: 40 }
+events:
+  - { at_s: 60, type: battery_drain_multiplier, drone_id: drone-02, value: 4, note: "cell degradation" }

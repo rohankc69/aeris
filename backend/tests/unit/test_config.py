@@ -12,24 +12,28 @@ def test_defaults_are_offline_and_simulated() -> None:
     assert settings.persistence_enabled is False
 
 
-def test_jev_provider_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AERIS_DECISION_PROVIDER", "jev")
-    with pytest.raises(ValidationError, match="TYPESAFE_API_KEY"):
+def test_openrouter_provider_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AERIS_DECISION_PROVIDER", "openrouter")
+    with pytest.raises(ValidationError, match="OPENROUTER_API_KEY"):
         load_settings(_env_file=None)
 
 
-def test_jev_provider_with_key_loads_and_redacts(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AERIS_DECISION_PROVIDER", "jev")
-    monkeypatch.setenv("TYPESAFE_API_KEY", "not-a-real-key")
-    monkeypatch.setenv("JEV_MODEL", "jev-test")
+def test_openrouter_provider_with_key_loads_and_redacts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AERIS_DECISION_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "not-a-real-key")
+    monkeypatch.setenv("JEV_MODEL", "typesafe/jev-test")
     settings = load_settings(_env_file=None)
-    assert settings.jev_model == "jev-test"
+    assert settings.jev_model == "typesafe/jev-test"
     assert "not-a-real-key" not in settings.model_dump_json()
 
 
-def test_fallback_cannot_be_jev(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AERIS_DECISION_FALLBACK", "jev")
-    with pytest.raises(ValidationError, match="fallback"):
+def test_model_id_has_a_default_but_is_configurable() -> None:
+    assert load_settings(_env_file=None).jev_model == "typesafe/jev-latest"
+
+
+def test_fallback_cannot_be_hosted(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AERIS_DECISION_FALLBACK", "openrouter")
+    with pytest.raises(ValidationError, match="offline"):
         load_settings(_env_file=None)
 
 

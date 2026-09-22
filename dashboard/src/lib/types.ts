@@ -127,3 +127,37 @@ export interface DomainEvent {
 export type StreamMessage =
   | { kind: "snapshot"; data: Snapshot }
   | { kind: "event"; data: DomainEvent };
+
+export interface DecisionRecord {
+  decision_id: string;
+  timestamp: string;
+  mission_id: string;
+  drone_id: string | null;
+  decision_type: string;
+  provider: string;
+  model: string | null;
+  input_state: Record<string, unknown>;
+  input_state_hash: string;
+  selected_value: string;
+  probabilities: Record<string, number>;
+  score: number | null;
+  latency_ms: number | null;
+  input_tokens: number | null;
+  estimated_cost_usd: number | null;
+  policy_value: string | null;
+  policy_reason: string | null;
+  safety_override: boolean;
+  safety_event_id: string | null;
+  final_action: string;
+  fallback_reason: string | null;
+}
+
+export interface SafetyEvent {
+  event_id: string;
+  timestamp: string;
+  drone_id: string | null;
+  rule: string;
+  proposed_action: string;
+  safe_alternative: string;
+  reason: string;
+}

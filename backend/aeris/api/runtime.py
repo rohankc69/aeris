@@ -63,7 +63,7 @@ class MissionRegistry:
         return self._missions.get(mission_id)
 
     async def create(self, scenario: Scenario, *, time_scale: float) -> MissionRuntime:
-        runner = ScenarioRunner(scenario, safety=self._settings.safety)
+        runner = ScenarioRunner(scenario, settings=self._settings)
         runtime = MissionRuntime(runner=runner, time_scale=time_scale)
 
         async def forward(event: DomainEvent) -> None:

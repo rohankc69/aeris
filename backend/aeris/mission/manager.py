@@ -6,30 +6,38 @@ One ``tick()`` does, in order:
 2. re-derive link states from telemetry age
 3. advance coverage from telemetry position against each drone's plan
 4. release zones held by drones that can no longer work them
-5. assign open zones to available drones and send plans
-6. send idle drones home when nothing is left, and complete the mission when appropriate
-
-Phase 1 scope: deterministic search coordination only. Decision providers (Phase 2) and the
-Safety Governor (Phase 3) slot in between steps 4 and 5 without changing this structure.
+5. ask the decision engine (if configured) the bounded ``drone_disposition`` question for
+   each due searching drone; every proposal is validated by the Safety Governor before it
+   acts, and the ``DecisionRecord`` carries the policy opinion, override flag and final action
+6. enforce the Safety Governor's deterministic rules on every drone, AI or not
+7. assign open zones to available drones and send plans
+8. send idle drones home when nothing is left, and complete the mission when appropriate
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from aeris.clock import Clock
+from aeris.decisions.engine import DecisionEngine
+from aeris.decisions.modules import DroneDispositionInput
 from aeris.domain.enums import (
     AssignmentTask,
+    Disposition,
     DroneStatus,
     LinkState,
     MissionStatus,
     OperatorActionType,
     ZoneStatus,
 )
-from aeris.domain.models import MissionAssignment, OperatorAction, WaypointPlan
+from aeris.domain.models import MissionAssignment, OperatorAction, SafetyEvent, WaypointPlan
 from aeris.events.events import (
+    DecisionCompleted,
     DroneReturning,
+    HumanReviewRequested,
     OperatorActionReceived,
+    SafetyOverrideTriggered,
     ZoneAssigned,
     ZoneReassignmentRequested,
 )
@@ -37,8 +45,9 @@ from aeris.fleet.base import FleetAdapter
 from aeris.planning.assignment import AssignmentCandidate, AssignmentStrategy
 from aeris.planning.coverage import CoveragePlanner, CoverageRequest
 from aeris.planning.progress import PlanProgressTracker
+from aeris.safety.governor import SafetyGovernor
 from aeris.world.service import WorldStateService
-from aeris.world.snapshot import WorldSnapshot
+from aeris.world.snapshot import DroneView, WorldSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -51,15 +60,23 @@ class MissionManager:
         fleet: FleetAdapter,
         coverage_planner: CoveragePlanner,
         assignment_strategy: AssignmentStrategy,
+        safety: SafetyGovernor,
         clock: Clock,
+        decision_engine: DecisionEngine | None = None,
+        disposition_interval_s: float = 15.0,
     ) -> None:
         self._world = world
         self._fleet = fleet
         self._coverage = coverage_planner
         self._assign = assignment_strategy
+        self._safety = safety
         self._clock = clock
+        self._engine = decision_engine
+        self._disposition_interval_s = disposition_interval_s
         self._trackers: dict[str, PlanProgressTracker] = {}
         self._plans: dict[str, WaypointPlan] = {}
+        self._last_decision_at: dict[str, datetime] = {}
+        self._active_violations: dict[str, str] = {}
 
     @property
     def world(self) -> WorldStateService:
@@ -78,6 +95,8 @@ class MissionManager:
         if self._world.mission.status is MissionStatus.ACTIVE:
             await self._advance_coverage()
             await self._release_unworkable_zones()
+            await self._evaluate_dispositions()  # proposals are validated by the governor
+            await self._enforce_safety()  # then rules run on every drone regardless
             await self._assign_open_zones()
             await self._settle_idle_drones()
             await self._check_completion()
@@ -182,6 +201,153 @@ class MissionManager:
                 else f"drone {state.status}"
             )
             await self._release_zone(view.drone.drone_id, reason)
+
+    async def _enforce_safety(self) -> None:
+        """Deterministic rules run on every drone every tick, whether or not AI is configured."""
+        snap = self._world.snapshot()
+        for view in snap.drones:
+            drone_id = view.drone.drone_id
+            violation = self._safety.check(view, snap)
+            if violation is None:
+                self._active_violations.pop(drone_id, None)
+                continue
+            if self._active_violations.get(drone_id) == violation.rule:
+                continue  # already acted on this rule; do not re-emit every tick
+            self._active_violations[drone_id] = violation.rule
+            state = view.state
+            if state is not None and _already_satisfies(state.status, violation.required_action):
+                continue
+            current = state.status if state else "NO_TELEMETRY"
+            event = SafetyEvent(
+                timestamp=snap.taken_at,
+                mission_id=snap.mission.mission_id,
+                drone_id=drone_id,
+                rule=violation.rule,
+                proposed_action=f"current:{current}",
+                safe_alternative=violation.required_action,
+                reason=violation.reason,
+                snapshot_hash=snap.snapshot_hash,
+            )
+            await self._record_safety_event(event)
+            await self._apply_disposition(
+                drone_id, violation.required_action, f"safety:{violation.rule}"
+            )
+
+    async def _evaluate_dispositions(self) -> None:
+        if self._engine is None:
+            return
+        snap = self._world.snapshot()
+        for view in snap.drones:
+            state = view.state
+            if state is None or state.link_state is not LinkState.CONNECTED:
+                continue
+            if state.status not in {DroneStatus.SEARCHING, DroneStatus.HOLDING}:
+                continue
+            if state.assigned_zone_id is None:
+                continue
+            last = self._last_decision_at.get(view.drone.drone_id)
+            if last and (snap.taken_at - last).total_seconds() < self._disposition_interval_s:
+                continue
+            self._last_decision_at[view.drone.drone_id] = snap.taken_at
+            await self._decide_disposition(view, snap)
+
+    async def _decide_disposition(self, view: DroneView, snap: WorldSnapshot) -> None:
+        assert self._engine is not None
+        state = view.state
+        assert state is not None
+        drone_id = view.drone.drone_id
+        inputs = DroneDispositionInput(
+            battery_percent=state.battery_percent,
+            estimated_return_battery_percent=self._safety.return_battery_percent(view, snap),
+            distance_to_base_m=state.position.distance_to(snap.mission.base_position),
+            zone_completion=state.coverage_completed,
+            connection_quality=state.connection_quality,
+            link_state=state.link_state,
+            telemetry_age_s=view.telemetry_age_s or 0.0,
+            active_detection=any(d.investigating_drone_id == drone_id for d in snap.detections),
+        )
+        outcome = await self._engine.drone_disposition(
+            inputs, mission_id=snap.mission.mission_id, drone_id=drone_id
+        )
+        proposal = Disposition(outcome.selected)
+        verdict = self._safety.validate_disposition(
+            proposal, view, snap, source=outcome.record.provider
+        )
+        record = outcome.record.model_copy(
+            update={
+                "safety_override": verdict.overridden,
+                "safety_event_id": verdict.event.event_id if verdict.event else None,
+                "final_action": verdict.action.value,
+            }
+        )
+        self._world.record_decision(record)
+        if verdict.event is not None:
+            await self._record_safety_event(verdict.event)
+        await self._world.publish(
+            DecisionCompleted(
+                mission_id=snap.mission.mission_id,
+                decision_id=record.decision_id,
+                decision_type=record.decision_type,
+                drone_id=drone_id,
+                provider=record.provider,
+                selected_value=record.selected_value,
+                final_action=record.final_action,
+                safety_override=record.safety_override,
+            )
+        )
+        await self._apply_disposition(drone_id, verdict.action, f"decision:{record.decision_id}")
+
+    async def _apply_disposition(self, drone_id: str, action: Disposition, reason: str) -> None:
+        state = self._world.drone_state(drone_id)
+        if state is None:
+            return
+        if action is Disposition.RETURN_TO_BASE:
+            await self._send_home(drone_id, reason)
+        elif action is Disposition.HOLD:
+            if (
+                state.status is not DroneStatus.HOLDING
+                and (await self._fleet.hold(drone_id)).accepted
+            ):
+                self._world.set_drone_status(
+                    drone_id,
+                    DroneStatus.HOLDING,
+                    assigned_zone_id=state.assigned_zone_id,
+                    coverage_completed=state.coverage_completed,
+                )
+        elif action is Disposition.HANDOFF_ZONE:
+            if state.assigned_zone_id is not None:
+                await self._release_zone(drone_id, reason)
+        elif action is Disposition.REQUEST_HUMAN_REVIEW:
+            await self._world.publish(
+                HumanReviewRequested(
+                    mission_id=self._world.mission_id,
+                    subject_type="drone",
+                    subject_id=drone_id,
+                    reason=reason,
+                )
+            )
+        elif action is Disposition.CONTINUE_SEARCH and state.status is DroneStatus.HOLDING:
+            plan = self._plans.get(drone_id)
+            if plan and (await self._fleet.send_mission(drone_id, plan)).accepted:
+                self._world.set_drone_status(
+                    drone_id,
+                    DroneStatus.SEARCHING,
+                    assigned_zone_id=state.assigned_zone_id,
+                    coverage_completed=state.coverage_completed,
+                )
+
+    async def _record_safety_event(self, event: SafetyEvent) -> None:
+        self._world.record_safety_event(event)
+        await self._world.publish(
+            SafetyOverrideTriggered(
+                mission_id=event.mission_id,
+                safety_event_id=event.event_id,
+                drone_id=event.drone_id,
+                rule=event.rule,
+                proposed_action=event.proposed_action,
+                safe_alternative=event.safe_alternative,
+            )
+        )
 
     async def _assign_open_zones(self) -> None:
         snap = self._world.snapshot()
@@ -335,3 +501,12 @@ class MissionManager:
                 target_id=target_id,
             )
         )
+
+
+def _already_satisfies(status: DroneStatus, required: Disposition) -> bool:
+    """A drone already returning or holding needs no new command or audit event."""
+    if required is Disposition.RETURN_TO_BASE:
+        return status in {DroneStatus.RETURNING, DroneStatus.LANDED}
+    if required is Disposition.HOLD:
+        return status in {DroneStatus.HOLDING, DroneStatus.RETURNING, DroneStatus.LANDED}
+    return False

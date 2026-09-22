@@ -1,6 +1,6 @@
 "use client";
 
-import type { DroneView, Snapshot } from "@/lib/types";
+import type { DecisionRecord, DroneView, Snapshot } from "@/lib/types";
 
 interface Props {
   snapshot: Snapshot | null;
@@ -8,6 +8,7 @@ interface Props {
   onSelect: (id: string) => void;
   onReturn: (id: string) => void;
   onHold: (id: string) => void;
+  decisions: DecisionRecord[];
 }
 
 function batteryClass(p: number): string {
@@ -23,13 +24,14 @@ function flightTime(view: DroneView, startedAt: string | null): string {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 }
 
-export function FleetPanel({ snapshot, selectedDrone, onSelect, onReturn, onHold }: Props) {
+export function FleetPanel({ snapshot, selectedDrone, onSelect, onReturn, onHold, decisions }: Props) {
   if (!snapshot) return <p className="small">No mission loaded.</p>;
   return (
     <>
       {snapshot.drones.map((view) => {
         const s = view.state;
         const selected = view.drone.drone_id === selectedDrone;
+        const latest = decisions.find((d) => d.drone_id === view.drone.drone_id);
         return (
           <div
             key={view.drone.drone_id}
@@ -64,7 +66,11 @@ export function FleetPanel({ snapshot, selectedDrone, onSelect, onReturn, onHold
                 <dt>Flight time</dt>
                 <dd>{flightTime(view, snapshot.mission.started_at)}</dd>
                 <dt>Latest decision</dt>
-                <dd>– (Phase 2)</dd>
+                <dd>
+                  {latest
+                    ? `${latest.final_action}${latest.safety_override ? " (safety)" : ""} · ${latest.provider}`
+                    : "–"}
+                </dd>
                 <dt />
                 <dd style={{ display: "flex", gap: 6, marginTop: 4 }}>
                   <button onClick={(e) => { e.stopPropagation(); onReturn(view.drone.drone_id); }}>Return</button>
